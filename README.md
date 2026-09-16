@@ -48,10 +48,10 @@ flutter run
 构建 APK：
 
 ```bash
-flutter build apk --release
+flutter build apk --release --target-platform android-arm64 --split-per-abi
 ```
 
-构建产物位于 `build/app/outputs/flutter-apk/app-release.apk`。
+构建产物位于 `build/app/outputs/flutter-apk/app-arm64-v8a-release.apk`。此安装包仅支持当前主流的 64 位 ARM 安卓设备，不支持 32 位设备或 x86 模拟器。
 
 ## 发布签名
 

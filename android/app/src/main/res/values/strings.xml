@@ -1,0 +1,6 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="app_name">TJ Class Schedule</string>
+    <string name="widget_name">下一节课</string>
+    <string name="widget_description">显示下一节课的时间、科目和地点</string>
+</resources>

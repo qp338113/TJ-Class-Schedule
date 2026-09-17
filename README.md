@@ -53,6 +53,17 @@ flutter build apk --release --target-platform android-arm64 --split-per-abi
 
 构建产物位于 `build/app/outputs/flutter-apk/app-arm64-v8a-release.apk`。此安装包仅支持当前主流的 64 位 ARM 安卓设备，不支持 32 位设备或 x86 模拟器。
 
+## 自动构建
+
+推送代码到 `main` 分支后，GitHub Actions 会自动检查、测试并构建 arm64 APK。构建完成后，可在仓库的 Actions 页面下载名为 `TJ-Class-Schedule-arm64-v8a` 的产物，保留 30 天。
+
+推送 `v` 开头的版本标签（例如 `v0.1.0`）后，GitHub 会自动创建 Release，并把 APK 添加到下载附件中：
+
+```bash
+git tag v0.1.0
+git push origin v0.1.0
+```
+
 ## 发布签名
 
 仓库中的 Release 配置目前使用调试签名，方便个人测试。正式向他人分发前，请创建自己的 Android 签名文件，并通过本机 `key.properties` 配置。签名文件和 `key.properties` 已加入 `.gitignore`，不要提交到 GitHub。

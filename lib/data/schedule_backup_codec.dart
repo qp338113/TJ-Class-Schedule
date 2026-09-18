@@ -7,6 +7,7 @@ class ScheduleBackup {
   const ScheduleBackup({
     required this.term,
     required this.courses,
+    this.memos = const [],
     required this.adjustments,
     required this.cancellations,
     required this.settings,
@@ -14,6 +15,7 @@ class ScheduleBackup {
 
   final Term term;
   final List<Course> courses;
+  final List<Memo> memos;
   final List<ScheduleAdjustment> adjustments;
   final List<CourseCancellation> cancellations;
   final NotificationSettings settings;
@@ -33,6 +35,7 @@ class ScheduleBackupCodec {
     'version': 1,
     'term': _termToJson(backup.term),
     'courses': backup.courses.map(_courseToJson).toList(),
+    'memos': backup.memos.map(_memoToJson).toList(),
     'adjustments': backup.adjustments
         .map(
           (item) => {
@@ -52,6 +55,7 @@ class ScheduleBackupCodec {
     'settings': {
       'enabled': backup.settings.enabled,
       'advanceMinutes': backup.settings.advanceMinutes,
+      'memoAdvanceMinutes': backup.settings.memoAdvanceMinutes,
       'onlyNextCourse': backup.settings.onlyNextCourse,
       'delayWhenInClass': backup.settings.delayWhenInClass,
       'showNextCourseOnLockScreen': backup.settings.showNextCourseOnLockScreen,
@@ -72,6 +76,10 @@ class ScheduleBackupCodec {
       courses: _list(
         root['courses'],
       ).map((item) => _courseFromJson(_map(item))).toList(),
+      // 旧备份（v1 早期版本）没有 memos 键，缺失时回退为空列表。
+      memos: _optionalList(
+        root['memos'],
+      ).map((item) => _memoFromJson(_map(item))).toList(),
       adjustments: _list(root['adjustments']).map((item) {
         final map = _map(item);
         return ScheduleAdjustment(
@@ -92,6 +100,8 @@ class ScheduleBackupCodec {
       settings: NotificationSettings(
         enabled: settings['enabled'] as bool? ?? true,
         advanceMinutes: settings['advanceMinutes'] as int? ?? 30,
+        // 旧备份没有备忘录提前时间，缺失时按默认 30 分钟处理。
+        memoAdvanceMinutes: settings['memoAdvanceMinutes'] as int? ?? 30,
         onlyNextCourse: settings['onlyNextCourse'] as bool? ?? false,
         delayWhenInClass: settings['delayWhenInClass'] as bool? ?? true,
         showNextCourseOnLockScreen:
@@ -200,6 +210,51 @@ Course _courseFromJson(Map<String, dynamic> map) => Course(
   }).toList(),
 );
 
+Map<String, Object?> _memoToJson(Memo memo) => {
+  'id': memo.id,
+  'title': memo.title,
+  'location': memo.location,
+  'colorValue': memo.colorValue,
+  'weekday': memo.weekday,
+  'startPeriod': memo.startPeriod,
+  'endPeriod': memo.endPeriod,
+  'startWeek': memo.weekRule?.startWeek,
+  'endWeek': memo.weekRule?.endWeek,
+  'weekType': memo.weekRule?.type.name,
+  'explicitWeeks': memo.weekRule?.explicitWeeks?.toList(),
+  'date': memo.date == null ? null : _dateKey(memo.date!),
+  'startMinutes': memo.startMinutes,
+  'endMinutes': memo.endMinutes,
+};
+
+Memo _memoFromJson(Map<String, dynamic> map) {
+  final startWeek = map['startWeek'] as int?;
+  final weeks = map['explicitWeeks'];
+  final date = map['date'] as String?;
+  return Memo(
+    id: _string(map, 'id'),
+    title: _string(map, 'title'),
+    location: _string(map, 'location'),
+    colorValue: _integer(map, 'colorValue'),
+    weekday: map['weekday'] as int?,
+    startPeriod: map['startPeriod'] as int?,
+    endPeriod: map['endPeriod'] as int?,
+    weekRule: startWeek == null
+        ? null
+        : WeekRule(
+            startWeek: startWeek,
+            endWeek: _integer(map, 'endWeek'),
+            type: WeekType.values.byName(_string(map, 'weekType')),
+            explicitWeeks: weeks == null
+                ? null
+                : _list(weeks).map((value) => value as int).toSet(),
+          ),
+    date: date == null ? null : DateTime.parse(date),
+    startMinutes: map['startMinutes'] as int?,
+    endMinutes: map['endMinutes'] as int?,
+  );
+}
+
 Map<String, dynamic> _map(Object? value) {
   if (value is Map<String, dynamic>) return value;
   throw const FormatException('备份文件内容不完整');
@@ -208,6 +263,12 @@ Map<String, dynamic> _map(Object? value) {
 List<dynamic> _list(Object? value) {
   if (value is List<dynamic>) return value;
   throw const FormatException('备份文件内容不完整');
+}
+
+/// 新增字段的兼容读取：缺失时回退为空列表，保证旧备份仍可导入。
+List<dynamic> _optionalList(Object? value) {
+  if (value == null) return const [];
+  return _list(value);
 }
 
 String _string(Map<String, dynamic> map, String key) {

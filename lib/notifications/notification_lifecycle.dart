@@ -70,6 +70,14 @@ class _NotificationLifecycleState extends ConsumerState<NotificationLifecycle>
     ref.listen(notificationSettingsProvider, (_, next) {
       unawaited(_syncNotifications());
     });
+    // 小组件颜色是它自己的设置，改完同样走上面那套同步把颜色推到桌面。
+    ref.listen(widgetColorProvider, (_, __) {
+      unawaited(_syncNotifications());
+    });
+    // 刷新频率要立刻推到原生侧，否则用户改完得等下次启动才生效。
+    ref.listen(widgetRefreshModeProvider, (_, __) {
+      unawaited(_syncNotifications());
+    });
     return widget.child;
   }
 
@@ -131,10 +139,18 @@ class _NotificationLifecycleState extends ConsumerState<NotificationLifecycle>
     final schedule = ref.read(scheduleControllerProvider).valueOrNull;
     final settings = ref.read(notificationSettingsProvider).valueOrNull;
     if (schedule == null || settings == null) return;
+    final widgetColor = ref.read(widgetColorProvider).valueOrNull;
+    final refreshMode =
+        ref.read(widgetRefreshModeProvider).valueOrNull ??
+        WidgetRefreshModeController.defaultMode;
     _syncing = true;
     try {
       await widget.service.reschedule(schedule: schedule, settings: settings);
-      await _widgetService.sync(schedule);
+      await _widgetService.sync(
+        schedule,
+        colorValue: widgetColor,
+        refreshMode: refreshMode,
+      );
     } finally {
       _syncing = false;
     }

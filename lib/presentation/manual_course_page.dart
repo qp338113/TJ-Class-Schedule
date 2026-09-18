@@ -13,6 +13,7 @@ class ManualCoursePage extends ConsumerStatefulWidget {
     this.course,
     this.session,
     this.date,
+    this.memo,
   });
 
   final Term term;
@@ -20,9 +21,15 @@ class ManualCoursePage extends ConsumerStatefulWidget {
   final CourseSession? session;
   final DateTime? date;
 
+  /// 编辑既有备忘录时传入；与 [course] 互斥。
+  final Memo? memo;
+
   @override
   ConsumerState<ManualCoursePage> createState() => _ManualCoursePageState();
 }
+
+/// 页面顶部的类型切换：同一个入口既能加课程，也能自己添加事件。
+enum _EntryType { course, memo }
 
 class _ManualCoursePageState extends ConsumerState<ManualCoursePage> {
   static const _weekParser = WeekRuleParser();
@@ -43,8 +50,19 @@ class _ManualCoursePageState extends ConsumerState<ManualCoursePage> {
   var _startPeriod = 1;
   var _endPeriod = 1;
 
+  /// 备忘录专用字段。
+  late _EntryType _type;
+  var _memoIsOneTime = false;
+  late DateTime _memoDate;
+  var _memoStartMinutes = 9 * 60;
+  var _memoEndMinutes = 10 * 60;
+  late int _memoColorValue;
   bool get _isEditing => widget.course != null && widget.session != null;
   bool get _isAddingSession => widget.course != null && widget.session == null;
+  bool get _isEditingMemo => widget.memo != null;
+
+  /// 只有全新添加时才显示类型切换：编辑既有课程/备忘录时类型已经确定。
+  bool get _canSwitchType => widget.course == null && widget.memo == null;
   List<LessonPeriod> get _periods =>
       widget.term.periodsByWeekday[_weekday] ?? const [];
 
@@ -53,21 +71,39 @@ class _ManualCoursePageState extends ConsumerState<ManualCoursePage> {
     super.initState();
     final course = widget.course;
     final session = widget.session;
-    _nameController = TextEditingController(text: course?.name ?? '');
+    final memo = widget.memo;
+    _type = memo == null ? _EntryType.course : _EntryType.memo;
+    _nameController = TextEditingController(
+      text: course?.name ?? memo?.title ?? '',
+    );
     _teacherController = TextEditingController(text: course?.teacher ?? '');
-    _locationController = TextEditingController(text: session?.location ?? '');
+    _locationController = TextEditingController(
+      text: session?.location ?? memo?.location ?? '',
+    );
     _weeksController = TextEditingController(
       text: session == null
-          ? '1-${widget.term.totalWeeks}周'
+          ? (memo?.weekRule) == null
+                ? '1-${widget.term.totalWeeks}周'
+                : _weekText(memo!.weekRule!)
           : _weekText(session.weekRule),
     );
-    _weekday = session?.weekday ?? DateTime.monday;
+    _weekday = session?.weekday ?? memo?.weekday ?? DateTime.monday;
     final periods = widget.term.periodsByWeekday[_weekday] ?? const [];
     _startPeriod =
-        session?.startPeriod ?? (periods.isEmpty ? 1 : periods.first.number);
+        session?.startPeriod ??
+        memo?.startPeriod ??
+        (periods.isEmpty ? 1 : periods.first.number);
     _endPeriod =
         session?.endPeriod ??
+        memo?.endPeriod ??
         (periods.length > 1 ? periods[1].number : _startPeriod);
+    const fallbackStart = 9 * 60;
+    final memoDate = memo?.date;
+    _memoIsOneTime = memoDate != null;
+    _memoDate = memoDate ?? DateTime.now();
+    _memoStartMinutes = memo?.startMinutes ?? fallbackStart;
+    _memoEndMinutes = memo?.endMinutes ?? fallbackStart + 60;
+    _memoColorValue = memo?.colorValue ?? _defaultMemoColor();
   }
 
   @override
@@ -85,7 +121,9 @@ class _ManualCoursePageState extends ConsumerState<ManualCoursePage> {
     return Scaffold(
       appBar: AppBar(
         title: Text(
-          _isEditing
+          _type == _EntryType.memo
+              ? (_isEditingMemo ? '修改备忘录' : '添加备忘录')
+              : _isEditing
               ? '修改课程'
               : _isAddingSession
               ? '添加时间段'
@@ -95,80 +133,113 @@ class _ManualCoursePageState extends ConsumerState<ManualCoursePage> {
       body: ListView(
         padding: const EdgeInsets.fromLTRB(20, 8, 20, 32),
         children: [
+          if (_canSwitchType) ...[
+            SegmentedButton<_EntryType>(
+              segments: const [
+                ButtonSegment(value: _EntryType.course, label: Text('课程')),
+                ButtonSegment(value: _EntryType.memo, label: Text('备忘录')),
+              ],
+              selected: {_type},
+              onSelectionChanged: (selection) =>
+                  setState(() => _type = selection.first),
+            ),
+            const SizedBox(height: 16),
+          ],
           TextField(
             controller: _nameController,
-            decoration: const InputDecoration(labelText: '课程名（必填）'),
+            decoration: InputDecoration(
+              labelText: _type == _EntryType.memo ? '标题（必填）' : '课程名（必填）',
+            ),
           ),
-          const SizedBox(height: 12),
-          TextField(
-            controller: _teacherController,
-            decoration: const InputDecoration(labelText: '教师'),
-          ),
+          if (_type == _EntryType.course) ...[
+            const SizedBox(height: 12),
+            TextField(
+              controller: _teacherController,
+              decoration: const InputDecoration(labelText: '教师'),
+            ),
+          ],
           const SizedBox(height: 12),
           TextField(
             controller: _locationController,
             decoration: const InputDecoration(labelText: '地点'),
           ),
-          const SizedBox(height: 12),
-          DropdownButtonFormField<int>(
-            initialValue: _weekday,
-            decoration: const InputDecoration(labelText: '周几'),
-            items: [
-              for (var day = 1; day <= 7; day++)
-                DropdownMenuItem(value: day, child: Text(_weekdayName(day))),
-            ],
-            onChanged: (value) {
-              if (value == null) return;
-              setState(() {
-                _weekday = value;
-                final available =
-                    widget.term.periodsByWeekday[value] ?? const [];
-                _startPeriod = available.isEmpty ? 1 : available.first.number;
-                _endPeriod = available.length > 1
-                    ? available[1].number
-                    : _startPeriod;
-              });
-            },
-          ),
-          const SizedBox(height: 12),
-          Row(
-            children: [
-              Expanded(
-                child: _periodPicker(
-                  label: '开始节次',
-                  value: _startPeriod,
-                  numbers: periodNumbers,
-                  onChanged: (value) => setState(() => _startPeriod = value),
-                ),
-              ),
-              const SizedBox(width: 12),
-              Expanded(
-                child: _periodPicker(
-                  label: '结束节次',
-                  value: _endPeriod,
-                  numbers: periodNumbers,
-                  onChanged: (value) => setState(() => _endPeriod = value),
-                ),
-              ),
-            ],
-          ),
-          const SizedBox(height: 12),
-          TextField(
-            controller: _weeksController,
-            decoration: const InputDecoration(
-              labelText: '上课周次（必填）',
-              helperText: '例如：1-16周、1-16周(单)、1,3,5-9周',
+          if (_type == _EntryType.memo)
+            ..._memoForm(context)
+          else ...[
+            const SizedBox(height: 12),
+            DropdownButtonFormField<int>(
+              initialValue: _weekday,
+              decoration: const InputDecoration(labelText: '周几'),
+              items: [
+                for (var day = 1; day <= 7; day++)
+                  DropdownMenuItem(value: day, child: Text(_weekdayName(day))),
+              ],
+              onChanged: (value) {
+                if (value == null) return;
+                setState(() {
+                  _weekday = value;
+                  final available =
+                      widget.term.periodsByWeekday[value] ?? const [];
+                  _startPeriod = available.isEmpty ? 1 : available.first.number;
+                  _endPeriod = available.length > 1
+                      ? available[1].number
+                      : _startPeriod;
+                });
+              },
             ),
-          ),
+            const SizedBox(height: 12),
+            Row(
+              children: [
+                Expanded(
+                  child: _periodPicker(
+                    label: '开始节次',
+                    value: _startPeriod,
+                    numbers: periodNumbers,
+                    onChanged: (value) => setState(() => _startPeriod = value),
+                  ),
+                ),
+                const SizedBox(width: 12),
+                Expanded(
+                  child: _periodPicker(
+                    label: '结束节次',
+                    value: _endPeriod,
+                    numbers: periodNumbers,
+                    onChanged: (value) => setState(() => _endPeriod = value),
+                  ),
+                ),
+              ],
+            ),
+            const SizedBox(height: 12),
+            TextField(
+              controller: _weeksController,
+              decoration: const InputDecoration(
+                labelText: '上课周次（必填）',
+                helperText: '例如：1-16周、1-16周(单)、1,5-9周',
+              ),
+            ),
+          ],
           const SizedBox(height: 24),
           FilledButton(
             onPressed: _save,
-            child: const Padding(
-              padding: EdgeInsets.symmetric(vertical: 12),
-              child: Text('保存课程'),
+            child: Padding(
+              padding: const EdgeInsets.symmetric(vertical: 12),
+              child: Text(
+                _type == _EntryType.memo ? '保存备忘录' : '保存课程',
+              ),
             ),
           ),
-          if (_isEditing) ...[
+          if (_type == _EntryType.memo) ...[
+            if (_isEditingMemo) ...[
+              const SizedBox(height: 12),
+              TextButton(
+                onPressed: _deleteMemo,
+                child: Text(
+                  '删除这条备忘录',
+                  style: TextStyle(color: Theme.of(context).colorScheme.error),
+                ),
+              ),
+            ],
+          ] else if (_isEditing) ...[
             const SizedBox(height: 12),
             OutlinedButton(
               onPressed: _addSession,
@@ -194,6 +265,183 @@ class _ManualCoursePageState extends ConsumerState<ManualCoursePage> {
     );
   }
 
+  /// 备忘录表单：时间类型二选一，以及颜色。
+  List<Widget> _memoForm(BuildContext context) {
+    final periodNumbers = _periods.map((period) => period.number).toList();
+    return [
+      const SizedBox(height: 16),
+      SegmentedButton<bool>(
+        segments: const [
+          ButtonSegment(value: false, label: Text('按周重复')),
+          ButtonSegment(value: true, label: Text('一次性')),
+        ],
+        selected: {_memoIsOneTime},
+        onSelectionChanged: (selection) =>
+            setState(() => _memoIsOneTime = selection.first),
+      ),
+      const SizedBox(height: 12),
+      if (_memoIsOneTime) ...[
+        ListTile(
+          contentPadding: EdgeInsets.zero,
+          title: const Text('日期'),
+          trailing: Text(_dateText(_memoDate)),
+          onTap: _pickMemoDate,
+        ),
+        ListTile(
+          contentPadding: EdgeInsets.zero,
+          title: const Text('开始时刻'),
+          trailing: Text(_minutesText(_memoStartMinutes)),
+          onTap: () => _pickMemoTime(isStart: true),
+        ),
+        ListTile(
+          contentPadding: EdgeInsets.zero,
+          title: const Text('结束时刻'),
+          trailing: Text(_minutesText(_memoEndMinutes)),
+          onTap: () => _pickMemoTime(isStart: false),
+        ),
+      ] else ...[
+        DropdownButtonFormField<int>(
+          initialValue: _weekday,
+          decoration: const InputDecoration(labelText: '周几'),
+          items: [
+            for (var day = 1; day <= 7; day++)
+              DropdownMenuItem(value: day, child: Text(_weekdayName(day))),
+          ],
+          onChanged: (value) {
+            if (value == null) return;
+            setState(() {
+              _weekday = value;
+              final available =
+                  widget.term.periodsByWeekday[value] ?? const [];
+              _startPeriod = available.isEmpty ? 1 : available.first.number;
+              _endPeriod = available.length > 1
+                  ? available[1].number
+                  : _startPeriod;
+            });
+          },
+        ),
+        const SizedBox(height: 12),
+        Row(
+          children: [
+            Expanded(
+              child: _periodPicker(
+                label: '开始节次',
+                value: _startPeriod,
+                numbers: periodNumbers,
+                onChanged: (value) => setState(() => _startPeriod = value),
+              ),
+            ),
+            const SizedBox(width: 12),
+            Expanded(
+              child: _periodPicker(
+                label: '结束节次',
+                value: _endPeriod,
+                numbers: periodNumbers,
+                onChanged: (value) => setState(() => _endPeriod = value),
+              ),
+            ),
+          ],
+        ),
+        const SizedBox(height: 12),
+        TextField(
+          controller: _weeksController,
+          decoration: const InputDecoration(
+            labelText: '重复周次（必填）',
+            helperText: '例如：1-16周、1-16周(单)、1,5-9周',
+          ),
+        ),
+      ],
+      const SizedBox(height: 16),
+      Text('颜色', style: Theme.of(context).textTheme.titleSmall),
+      const SizedBox(height: 8),
+      Wrap(
+        spacing: 16,
+        children: [
+          for (final value in _palette)
+            InkWell(
+              borderRadius: BorderRadius.circular(24),
+              onTap: () => setState(() => _memoColorValue = value),
+              child: Padding(
+                padding: const EdgeInsets.all(4),
+                child: CircleAvatar(
+                  backgroundColor: Color(value),
+                  radius: 16,
+                  child: value == _memoColorValue
+                      ? const Icon(Icons.check_rounded, size: 16)
+                      : null,
+                ),
+              ),
+            ),
+        ],
+      ),
+      const SizedBox(height: 4),
+    ];
+  }
+
+  int _defaultMemoColor() {
+    final current = ref.read(scheduleControllerProvider).valueOrNull;
+    return _palette[(current?.memos.length ?? 0) % _palette.length];
+  }
+
+  Future<void> _pickMemoDate() async {
+    final picked = await showDatePicker(
+      context: context,
+      initialDate: _memoDate,
+      firstDate: DateTime(2020),
+      lastDate: DateTime(2100),
+      helpText: '选择备忘录日期',
+    );
+    if (picked != null) setState(() => _memoDate = picked);
+  }
+
+  Future<void> _pickMemoTime({required bool isStart}) async {
+    final picked = await showTimePicker(
+      context: context,
+      initialTime: _toTime(isStart ? _memoStartMinutes : _memoEndMinutes),
+      helpText: isStart ? '选择开始时刻' : '选择结束时刻',
+    );
+    if (picked == null) return;
+    final minutes = picked.hour * 60 + picked.minute;
+    setState(() {
+      if (isStart) {
+        _memoStartMinutes = minutes;
+      } else {
+        _memoEndMinutes = minutes;
+      }
+    });
+  }
+
+  Future<void> _deleteMemo() async {
+    if (!await _confirm('删除这条备忘录？', '删除后就无法恢复了。')) return;
+    await ref
+        .read(scheduleControllerProvider.notifier)
+        .deleteMemo(widget.memo!.id);
+    if (mounted) Navigator.pop(context);
+  }
+
+  /// 保存备忘录；校验不通过时返回 false 并提示。
+  bool _validateMemo(String title) {
+    if (title.isEmpty) {
+      _showMessage('请填写备忘录标题');
+      return false;
+    }
+    if (_memoIsOneTime) {
+      if (_memoEndMinutes <= _memoStartMinutes) {
+        _showMessage('结束时刻必须晚于开始时刻');
+        return false;
+      }
+      return true;
+    }
+    if (_periods.isEmpty ||
+        !_periods.any((period) => period.number == _startPeriod) ||
+        !_periods.any((period) => period.number == _endPeriod) ||
+        _endPeriod < _startPeriod) {
+      _showMessage('结束节次不能早于开始节次');
+      return false;
+    }
+    return true;
+  }
+
   Widget _periodPicker({
     required String label,
     required int value,
@@ -214,6 +462,7 @@ class _ManualCoursePageState extends ConsumerState<ManualCoursePage> {
   }
 
   Future<void> _save() async {
+    if (_type == _EntryType.memo) return _saveMemo();
     final name = _nameController.text.trim();
     if (name.isEmpty) return _showMessage('请填写课程名');
     if (_periods.isEmpty ||
@@ -278,8 +527,47 @@ class _ManualCoursePageState extends ConsumerState<ManualCoursePage> {
     }
   }
 
-  Future<bool> _confirmConflicts(List<CourseConflict> conflicts) async {
-    final conflict = conflicts.first;
+  /// 保存备忘录：按周重复走节次，一次性走日期 + 起止时刻。
+  Future<void> _saveMemo() async {
+    final title = _nameController.text.trim();
+    if (!_validateMemo(title)) return;
+    WeekRule? weekRule;
+    if (!_memoIsOneTime) {
+      final weekResult = _weekParser.parse(_weeksController.text);
+      if (!weekResult.isSuccess) {
+        return _showMessage(weekResult.error ?? '无法识别重复周次');
+      }
+      weekRule = weekResult.value;
+    }
+    final oldMemo = widget.memo;
+    final memo = Memo(
+      id: oldMemo?.id ?? 'memo-${DateTime.now().microsecondsSinceEpoch}',
+      title: title,
+      location: _locationController.text.trim(),
+      colorValue: _memoColorValue,
+      weekday: _memoIsOneTime ? null : _weekday,
+      startPeriod: _memoIsOneTime ? null : _startPeriod,
+      endPeriod: _memoIsOneTime ? null : _endPeriod,
+      weekRule: _memoIsOneTime ? null : weekRule,
+      date: _memoIsOneTime ? _memoDate : null,
+      startMinutes: _memoIsOneTime ? _memoStartMinutes : null,
+      endMinutes: _memoIsOneTime ? _memoEndMinutes : null,
+    );
+    final notifier = ref.read(scheduleControllerProvider.notifier);
+    if (oldMemo == null) {
+      await notifier.addMemo(memo);
+    } else {
+      await notifier.updateMemo(memo);
+    }
+    if (!mounted) return;
+    if (ref.read(scheduleControllerProvider).hasError) {
+      _showMessage('保存失败，请重试');
+    } else {
+      Navigator.pop(context, true);
+    }
+  }
+
+  Future<bool> _confirmConflicts(List<CourseConflict> conflicts) async {    final conflict = conflicts.first;
     return await showDialog<bool>(
           context: context,
           builder: (context) => AlertDialog(
@@ -398,3 +686,14 @@ String _weekText(WeekRule rule) {
 
 String _weekdayName(int weekday) =>
     const ['周一', '周二', '周三', '周四', '周五', '周六', '周日'][weekday - 1];
+
+TimeOfDay _toTime(int minutes) =>
+    TimeOfDay(hour: minutes ~/ 60, minute: minutes % 60);
+
+String _minutesText(int minutes) {
+  final hour = (minutes ~/ 60).toString().padLeft(2, '0');
+  final minute = (minutes % 60).toString().padLeft(2, '0');
+  return '$hour:$minute';
+}
+
+String _dateText(DateTime date) => '${date.year}年${date.month}月${date.day}日';

@@ -9,6 +9,7 @@
     android:padding="16dp">
 
     <TextView
+        android:id="@+id/widget_label"
         android:layout_width="wrap_content"
         android:layout_height="wrap_content"
         android:text="下一节课"
@@ -35,7 +36,7 @@
         android:textSize="12sp"
         android:textStyle="bold" />
 
-    <Chronometer
+    <TextView
         android:id="@+id/widget_countdown"
         android:layout_width="match_parent"
         android:layout_height="wrap_content"
@@ -43,6 +44,18 @@
         android:textColor="#B54708"
         android:textSize="12sp"
         android:textStyle="bold" />
+
+    <!-- 精确模式专用：Chronometer 由桌面进程自行每秒走动，不依赖应用唤醒，
+         因此只有它能真正做到“显示到秒”。省电/正常模式仍用上面的静态文本。 -->
+    <Chronometer
+        android:id="@+id/widget_countdown_precise"
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:layout_marginTop="3dp"
+        android:textColor="#B54708"
+        android:textSize="12sp"
+        android:textStyle="bold"
+        android:visibility="gone" />
 
     <TextView
         android:id="@+id/widget_course_teacher"

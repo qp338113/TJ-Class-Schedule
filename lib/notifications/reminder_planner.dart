@@ -43,6 +43,7 @@ class ReminderPlanner {
     required DateTime now,
     required Term term,
     required List<Course> courses,
+    Iterable<Memo> memos = const [],
     List<ScheduleAdjustment> adjustments = const [],
     List<CourseCancellation> cancellations = const [],
     required NotificationSettings settings,
@@ -51,16 +52,21 @@ class ReminderPlanner {
     final engine = ScheduleEngine(
       term: term,
       courses: courses,
+      memos: memos,
       adjustments: adjustments,
       cancellations: cancellations,
     );
     final firstDay = DateTime(now.year, now.month, now.day);
-    final pending = <({ScheduledCourse course, DateTime reminderAt})>[];
+    final pending = <({ScheduleEntry entry, DateTime reminderAt})>[];
     for (var offset = 0; offset < 7; offset++) {
       final date = firstDay.add(Duration(days: offset));
-      for (final course in engine.getCoursesForDate(date)) {
-        final originalReminderAt = course.startTime.subtract(
-          Duration(minutes: settings.advanceMinutes),
+      for (final entry in engine.getEntriesForDate(date)) {
+        // 备忘录有自己的提前时间，与课程的 advanceMinutes 相互独立。
+        final advanceMinutes = entry.isMemo
+            ? settings.memoAdvanceMinutes
+            : settings.advanceMinutes;
+        final originalReminderAt = entry.startTime.subtract(
+          Duration(minutes: advanceMinutes),
         );
         var reminderAt = originalReminderAt;
         if (settings.delayWhenInClass) {
@@ -80,25 +86,35 @@ class ReminderPlanner {
           }
         }
         if (reminderAt.isAfter(now)) {
-          pending.add((course: course, reminderAt: reminderAt));
+          pending.add((entry: entry, reminderAt: reminderAt));
         }
       }
     }
-    pending.sort((a, b) => a.reminderAt.compareTo(b.reminderAt));
+    pending.sort((a, b) {
+      final timeOrder = a.reminderAt.compareTo(b.reminderAt);
+      if (timeOrder != 0) return timeOrder;
+      final startOrder = a.entry.startTime.compareTo(b.entry.startTime);
+      if (startOrder != 0) return startOrder;
+      return a.entry.isMemo == b.entry.isMemo
+          ? a.entry.title.compareTo(b.entry.title)
+          : (a.entry.isMemo ? 1 : -1);
+    });
     final selected = settings.onlyNextCourse && pending.isNotEmpty
         ? [pending.first]
         : pending;
     return List<ReminderPlan>.generate(selected.length, (index) {
       final item = selected[index];
-      final course = item.course;
-      final location = course.session.location.trim();
+      final entry = item.entry;
+      final location = entry.location.trim();
       return ReminderPlan(
         id: 1000 + index,
         scheduledAt: item.reminderAt,
-        title: '${course.course.name} 即将上课',
+        title: entry.isMemo
+            ? '${entry.title} 即将开始'
+            : '${entry.title} 即将上课',
         body:
-            '${_time(course.startTime)}${location.isEmpty ? '' : ' · $location'}',
-        payload: _datePayload(course.startTime),
+            '${_time(entry.startTime)}${location.isEmpty ? '' : ' · $location'}',
+        payload: _datePayload(entry.startTime),
       );
     });
   }

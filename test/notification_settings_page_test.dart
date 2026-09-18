@@ -16,7 +16,10 @@ void main() {
     );
     await tester.pumpAndSettle();
     expect(find.text('上课提醒'), findsOneWidget);
-    expect(find.text('30 分钟'), findsOneWidget);
+    // 课程与备忘录各有独立的提前时间，默认值同为 30 分钟，因此有两个“30 分钟”。
+    expect(find.text('30 分钟'), findsNWidgets(2));
+    expect(find.text('提前时间'), findsOneWidget);
+    expect(find.text('备忘录提前时间'), findsOneWidget);
     expect(find.text('仅提醒下一节'), findsOneWidget);
     expect(find.text('上课中延后提醒'), findsOneWidget);
     expect(find.text('锁屏显示下一节课'), findsOneWidget);
@@ -44,6 +47,33 @@ void main() {
     await tester.tap(find.text('保存'));
     await tester.pumpAndSettle();
     expect(find.text('45 分钟'), findsOneWidget);
+  });
+
+  testWidgets('备忘录提前时间显示当前值并能单独修改', (tester) async {
+    final controller = _FakeSettingsController(const NotificationSettings());
+    await tester.pumpWidget(
+      ProviderScope(
+        overrides: [
+          notificationSettingsProvider.overrideWith(() => controller),
+        ],
+        child: const MaterialApp(home: NotificationSettingsPage()),
+      ),
+    );
+    await tester.pumpAndSettle();
+    expect(find.text('备忘录提前时间'), findsOneWidget);
+    expect(find.text('30 分钟'), findsNWidgets(2));
+
+    await tester.tap(find.text('备忘录提前时间'));
+    await tester.pumpAndSettle();
+    await tester.enterText(find.byType(TextField), '10');
+    await tester.tap(find.text('保存'));
+    await tester.pumpAndSettle();
+
+    // 只改备忘录这一项，课程的提前时间保持不变。
+    expect(find.text('10 分钟'), findsOneWidget);
+    expect(find.text('30 分钟'), findsOneWidget);
+    expect(controller.saved.memoAdvanceMinutes, 10);
+    expect(controller.saved.advanceMinutes, 30);
   });
 
   testWidgets('可以选择通知加震动但不播放声音', (tester) async {
@@ -91,12 +121,17 @@ Widget _withSettings(NotificationSettings settings, Widget child) {
 class _FakeSettingsController extends NotificationSettingsController {
   _FakeSettingsController(this.settings);
   final NotificationSettings settings;
+  late NotificationSettings saved;
 
   @override
-  Future<NotificationSettings> build() async => settings;
+  Future<NotificationSettings> build() async {
+    saved = settings;
+    return settings;
+  }
 
   @override
   Future<void> saveSettings(NotificationSettings settings) async {
+    saved = settings;
     state = AsyncData(settings);
   }
 }

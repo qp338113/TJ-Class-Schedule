@@ -15,3 +15,10 @@ tmp/
 *.keystore
 key.properties
 *.log
+
+# 内部交接文档，面向接手开发者，不进公开仓库。
+PROJECT_HANDOFF.md
+
+# Word 版更新报告由 RELEASE_NOTES.md 生成，二进制文件不入库。
+*.docx
+~$*.docx

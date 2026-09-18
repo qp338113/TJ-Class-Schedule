@@ -2,15 +2,19 @@ import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 
 class AppTheme {
-  static ThemeData light() => _build(
+  /// [seedColor] 只影响 `ColorScheme.fromSeed` 的主色，背景色、卡片色与文字色
+  /// 仍由下面的固定值决定。
+  static ThemeData light({required Color seedColor}) => _build(
     brightness: Brightness.light,
+    seedColor: seedColor,
     background: const Color(0xFFF5F5F3),
     surface: Colors.white,
     text: const Color(0xFF202124),
   );
 
-  static ThemeData dark() => _build(
+  static ThemeData dark({required Color seedColor}) => _build(
     brightness: Brightness.dark,
+    seedColor: seedColor,
     background: const Color(0xFF111214),
     surface: const Color(0xFF1C1D20),
     text: const Color(0xFFF1F1EF),
@@ -18,12 +22,13 @@ class AppTheme {
 
   static ThemeData _build({
     required Brightness brightness,
+    required Color seedColor,
     required Color background,
     required Color surface,
     required Color text,
   }) {
     final scheme = ColorScheme.fromSeed(
-      seedColor: const Color(0xFF607D8B),
+      seedColor: seedColor,
       brightness: brightness,
       surface: surface,
     );

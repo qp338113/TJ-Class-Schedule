@@ -1,11 +1,15 @@
+import 'dart:io';
+
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../application/schedule_controller.dart';
 import '../domain/schedule_engine.dart';
 import '../domain/schedule_models.dart';
-import 'import_preview_page.dart';
+import 'appearance_settings_page.dart';
 import 'data_management_page.dart';
+import 'full_timetable_page.dart';
+import 'import_preview_page.dart';
 import 'manual_course_page.dart';
 import 'notification_settings_page.dart';
 import 'term_setup_page.dart';
@@ -100,27 +104,80 @@ class _ScheduleHome extends ConsumerWidget {
     final navigationRevision = ref.watch(
       notificationNavigationRevisionProvider,
     );
+    final swipeAdvancesWeek =
+        ref.watch(swipeAdvancesWeekProvider).valueOrNull ?? false;
+    final slideDirection = ref.watch(_dateChangeDirectionProvider);
+    final backgroundPath = ref.watch(backgroundImagePathProvider).valueOrNull;
+    final overlayOpacity =
+        ref.watch(backgroundOverlayOpacityProvider).valueOrNull ??
+        BackgroundOverlayOpacityController.defaultOpacity;
     final engine = ScheduleEngine(
       term: term,
       courses: data.courses,
+      memos: data.memos,
       adjustments: data.adjustments,
       cancellations: data.cancellations,
     );
+    // 有背景图时整屏铺满：图片铺在 Scaffold 外层，标题栏与页面底色改透明即可透出，
+    // 不需要 extendBodyBehindAppBar——那会把 body 顶到 y=0，内容钻到标题栏下面。
+    final hasBackground =
+        backgroundPath != null && File(backgroundPath).existsSync();
     return DefaultTabController(
       key: ValueKey(navigationRevision),
       length: 2,
-      child: Scaffold(
-        floatingActionButton: FloatingActionButton.extended(
-          onPressed: () => Navigator.push(
-            context,
-            MaterialPageRoute<void>(
-              builder: (_) => ManualCoursePage(term: term),
+      child: _BackgroundImage(
+        path: backgroundPath,
+        overlayOpacity: overlayOpacity,
+        child: Scaffold(
+          backgroundColor: hasBackground ? Colors.transparent : null,
+          // Scaffold 按 endFloat 定位悬浮按钮，只保证「右边缘距屏幕 16」。
+          // Row 若撑满整屏（默认 mainAxisSize.max），左端就会被推到屏幕外裁掉，
+          // 两个按钮看起来不对称。这里把宽度收成「屏宽 - 左右各 16」，
+          // 让左右留白一致。
+          floatingActionButton: SizedBox(
+            width: MediaQuery.sizeOf(context).width -
+                2 * kFloatingActionButtonMargin,
+            child: Row(
+              mainAxisAlignment: MainAxisAlignment.spaceBetween,
+              children: [
+                // 左下角：整周课表。与右下角的“添加课程”左右对称。
+                FloatingActionButton.extended(
+                  heroTag: 'full_timetable_fab',
+                  onPressed: () => Navigator.push(
+                    context,
+                    MaterialPageRoute<void>(
+                      builder: (_) => FullTimetablePage(
+                        term: term,
+                        courses: data.courses,
+                      ),
+                    ),
+                  ),
+                  icon: const Icon(Icons.grid_view_rounded),
+                  label: const Text('整周课表'),
+                ),
+                FloatingActionButton.extended(
+                  heroTag: 'add_course_fab',
+                  onPressed: () => Navigator.push(
+                    context,
+                    MaterialPageRoute<void>(
+                      builder: (_) => ManualCoursePage(term: term),
+                    ),
+                  ),
+                  icon: const Icon(Icons.add_rounded),
+                  label: const Text('添加课程'),
+                ),
+              ],
             ),
           ),
-          icon: const Icon(Icons.add_rounded),
-          label: const Text('添加课程'),
-        ),
         appBar: AppBar(
+          // 有背景图时不能用全透明：标题与“今日/本周”标签会直接压在图片上，
+          // 遇到深色或花哨的图就完全看不清。改用带透明度的表面色——图片仍能透出，
+          // 文字始终清晰。（AppBar 的 bottom 是 TabBar，一并被这层底色覆盖。）
+          backgroundColor: hasBackground
+              ? Theme.of(context).colorScheme.surface.withValues(alpha: 0.72)
+              : null,
+          elevation: hasBackground ? 0 : null,
+          scrolledUnderElevation: hasBackground ? 0 : null,
           title: Text(term.name),
           actions: [
             IconButton(
@@ -167,15 +224,31 @@ class _ScheduleHome extends ConsumerWidget {
                       builder: (_) => const DataManagementPage(),
                     ),
                   );
+                } else if (value == 'swipe_mode') {
+                  _toggleSwipeMode(ref, swipeAdvancesWeek);
+                } else if (value == 'appearance') {
+                  Navigator.push(
+                    context,
+                    MaterialPageRoute<void>(
+                      builder: (_) => const AppearanceSettingsPage(),
+                    ),
+                  );
                 }
               },
-              itemBuilder: (_) => const [
-                PopupMenuItem(value: 'tongji', child: Text('从同济1系统导入')),
-                PopupMenuItem(value: 'notifications', child: Text('提醒设置')),
-                PopupMenuItem(value: 'makeup', child: Text('检查国家调休')),
-                PopupMenuItem(value: 'undo_import', child: Text('撤销上次导入')),
-                PopupMenuItem(value: 'backup', child: Text('备份与恢复')),
-                PopupMenuItem(value: 'term', child: Text('编辑学期与节次')),
+              itemBuilder: (_) => [
+                const PopupMenuItem(value: 'tongji', child: Text('从同济1系统导入')),
+                const PopupMenuItem(value: 'notifications', child: Text('提醒设置')),
+                const PopupMenuItem(value: 'makeup', child: Text('检查国家调休')),
+                const PopupMenuItem(value: 'undo_import', child: Text('撤销上次导入')),
+                const PopupMenuItem(value: 'backup', child: Text('备份与恢复')),
+                const PopupMenuItem(value: 'term', child: Text('编辑学期与节次')),
+                PopupMenuItem(
+                  value: 'swipe_mode',
+                  child: Text(
+                    swipeAdvancesWeek ? '滑动切换：一周' : '滑动切换：一天',
+                  ),
+                ),
+                const PopupMenuItem(value: 'appearance', child: Text('外观设置')),
               ],
             ),
           ],
@@ -191,6 +264,7 @@ class _ScheduleHome extends ConsumerWidget {
             _DateHeader(
               date: selectedDate,
               week: engine.getWeekForDate(selectedDate),
+              hasBackground: hasBackground,
               onPrevious: () => _changeDate(ref, selectedDate, -1),
               onNext: () => _changeDate(ref, selectedDate, 1),
               onToday: () => ref.read(selectedDateProvider.notifier).state =
@@ -205,37 +279,76 @@ class _ScheduleHome extends ConsumerWidget {
                 term: term,
               ),
             Expanded(
-              child: TabBarView(
-                children: [
-                  _TodayView(
-                    date: selectedDate,
-                    courses: engine.getCoursesForDate(selectedDate),
-                  ),
-                  _WeekView(selectedDate: selectedDate, engine: engine),
-                ],
+              child: GestureDetector(
+                // 左右滑动切换日期；标签页自带的滑动已关闭，改由点顶部 Tab 切换。
+                onHorizontalDragEnd: (details) => _handleSwipe(
+                  ref,
+                  selectedDate,
+                  details.primaryVelocity ?? 0,
+                  swipeAdvancesWeek,
+                ),
+                child: TabBarView(
+                  physics: const NeverScrollableScrollPhysics(),
+                  children: [
+                    _SlideOnDateChange(
+                      dateKey: selectedDate,
+                      direction: slideDirection,
+                      child: _TodayView(
+                        date: selectedDate,
+                        courses: engine.getEntriesForDate(selectedDate),
+                      ),
+                    ),
+                    _SlideOnDateChange(
+                      dateKey: selectedDate,
+                      direction: slideDirection,
+                      child: _WeekView(
+                        selectedDate: selectedDate,
+                        engine: engine,
+                      ),
+                    ),
+                  ],
+                ),
               ),
             ),
             SafeArea(
               top: false,
               minimum: const EdgeInsets.only(bottom: 6),
-              child: Text(
-                'Powered by Algernon',
-                style: TextStyle(
-                  fontSize: 10,
-                  color: Theme.of(context).colorScheme.onSurfaceVariant,
-                ),
-              ),
+              child: const _PoweredByFooter(),
             ),
           ],
         ),
       ),
-    );
-  }
+    ),
+  );
+}
 
   void _changeDate(WidgetRef ref, DateTime date, int days) {
+    // 记下方向，供日期内容做横向滑入动画。
+    ref.read(_dateChangeDirectionProvider.notifier).state = days >= 0 ? 1 : -1;
     ref.read(selectedDateProvider.notifier).state = date.add(
       Duration(days: days),
     );
+  }
+
+  /// 按滑动方向切换日期：向左滑（primaryVelocity < 0）前进，向右滑后退。
+  /// 速度绝对值不足阈值时视为误触，不做任何切换。
+  void _handleSwipe(
+    WidgetRef ref,
+    DateTime date,
+    double primaryVelocity,
+    bool swipeAdvancesWeek,
+  ) {
+    const velocityThreshold = 200.0;
+    if (primaryVelocity.abs() < velocityThreshold) return;
+    final days = (swipeAdvancesWeek ? 7 : 1) * (primaryVelocity < 0 ? 1 : -1);
+    _changeDate(ref, date, days);
+  }
+
+  /// 在“滑一天”和“滑一周”之间切换，并写入本机设置。
+  void _toggleSwipeMode(WidgetRef ref, bool swipeAdvancesWeek) {
+    ref
+        .read(swipeAdvancesWeekProvider.notifier)
+        .saveSettings(!swipeAdvancesWeek);
   }
 
   Future<void> _selectWeek(
@@ -327,6 +440,7 @@ class _AdjustmentBanner extends ConsumerWidget {
   Widget build(BuildContext context, WidgetRef ref) {
     final weekday = adjustment.replacementWeekday;
     final replacementWeek = adjustment.replacementWeek;
+    final hasReplacement = weekday != null && replacementWeek != null;
     return Container(
       margin: const EdgeInsets.fromLTRB(20, 0, 20, 10),
       padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
@@ -347,84 +461,129 @@ class _AdjustmentBanner extends ConsumerWidget {
             child: Text(
               adjustment.isHoliday
                   ? '国家法定节假日：${adjustment.holidayName ?? '放假'}，今天不显示课程'
-                  : weekday == null || replacementWeek == null
-                  ? '今天是国家调休上班日，请确认补哪一周、周几的课'
-                  : '调休提示：今天按第 $replacementWeek 周${_weekdayName(weekday)}课表上课'
+                  : !hasReplacement
+                  ? '今天是国家调休上班日，请选择要补哪一天的课'
+                  : '调休提示：今天补第 $replacementWeek 周'
+                        '${_weekdayName(weekday)}的课'
                         '${actualWeek == null ? '' : '（实际日期是第 $actualWeek 周）'}',
               style: const TextStyle(fontSize: 12, fontWeight: FontWeight.w600),
             ),
           ),
-          if (!adjustment.isHoliday)
+          if (!adjustment.isHoliday) ...[
+            if (hasReplacement)
+              TextButton(
+                onPressed: () => ref
+                    .read(scheduleControllerProvider.notifier)
+                    .clearReplacementSchedule(date),
+                child: const Text('取消'),
+              ),
             TextButton(
               onPressed: () => _selectReplacement(context, ref),
-              child: Text(
-                weekday == null || replacementWeek == null ? '设置' : '修改',
-              ),
+              child: Text(hasReplacement ? '修改' : '设置'),
             ),
+          ],
         ],
       ),
     );
   }
 
   Future<void> _selectReplacement(BuildContext context, WidgetRef ref) async {
-    var selectedWeek = adjustment.replacementWeek ?? actualWeek ?? 1;
+    // 学期可能被改短，旧的替代周次会超出范围；夹回有效区间，否则下拉框找不到
+    // 匹配项会断言失败，日期选择器的 initialDate 也会越界。
+    var selectedWeek = (adjustment.replacementWeek ?? actualWeek ?? 1).clamp(
+      1,
+      term.totalWeeks,
+    );
     var selectedWeekday = adjustment.replacementWeekday ?? date.weekday;
     final selected = await showDialog<({int week, int weekday})>(
       context: context,
       builder: (context) => StatefulBuilder(
-        builder: (context, setDialogState) => AlertDialog(
-          title: const Text('设置补课课表'),
-          content: Column(
-            mainAxisSize: MainAxisSize.min,
-            children: [
-              const Text('请按学校通知选择目标教学周和星期。'),
-              const SizedBox(height: 16),
-              DropdownButtonFormField<int>(
-                initialValue: selectedWeek,
-                decoration: const InputDecoration(labelText: '目标教学周'),
-                items: [
-                  for (var week = 1; week <= term.totalWeeks; week++)
-                    DropdownMenuItem(value: week, child: Text('第 $week 周')),
-                ],
-                onChanged: (value) {
-                  if (value != null) {
-                    setDialogState(() => selectedWeek = value);
-                  }
-                },
+        builder: (context, setDialogState) {
+          // 选了日期就自动对应教学周和星期，反过来改下拉框也会刷新这里的日期。
+          final sourceDate = term.dateOf(selectedWeek, selectedWeekday);
+          return AlertDialog(
+            title: const Text('设置补课课表'),
+            content: Column(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                const Text('按学校通知选出“要补哪一天”的课程，教学周和星期会自动对应。'),
+                const SizedBox(height: 16),
+                OutlinedButton.icon(
+                  onPressed: () async {
+                    final picked = await showDatePicker(
+                      context: context,
+                      initialDate: sourceDate,
+                      firstDate: term.firstWeekMonday,
+                      lastDate: term.lastDay,
+                      helpText: '选择要补的课程原本的日期',
+                    );
+                    if (picked == null) return;
+                    final week = term.weekOf(picked);
+                    if (week == null) return;
+                    setDialogState(() {
+                      selectedWeek = week;
+                      selectedWeekday = picked.weekday;
+                    });
+                  },
+                  icon: const Icon(Icons.event_outlined),
+                  label: Text(
+                    '${sourceDate.month}月${sourceDate.day}日'
+                    '（${_weekdayName(sourceDate.weekday)}）',
+                  ),
+                ),
+                const SizedBox(height: 12),
+                DropdownButtonFormField<int>(
+                  // DropdownButtonFormField 的值存在 FormFieldState 里，而
+                  // FormField.didUpdateWidget 不会因 initialValue 变化而同步它。
+                  // 用 key 让选完日期后整个下拉框重建，显示才会跟着更新。
+                  key: ValueKey('week-$selectedWeek'),
+                  initialValue: selectedWeek,
+                  decoration: const InputDecoration(labelText: '教学周'),
+                  items: [
+                    for (var week = 1; week <= term.totalWeeks; week++)
+                      DropdownMenuItem(value: week, child: Text('第 $week 周')),
+                  ],
+                  onChanged: (value) {
+                    if (value != null) {
+                      setDialogState(() => selectedWeek = value);
+                    }
+                  },
+                ),
+                const SizedBox(height: 12),
+                DropdownButtonFormField<int>(
+                  key: ValueKey('weekday-$selectedWeekday'),
+                  initialValue: selectedWeekday,
+                  decoration: const InputDecoration(labelText: '星期'),
+                  items: [
+                    for (var day = 1; day <= 7; day++)
+                      DropdownMenuItem(
+                        value: day,
+                        child: Text(_weekdayName(day)),
+                      ),
+                  ],
+                  onChanged: (value) {
+                    if (value != null) {
+                      setDialogState(() => selectedWeekday = value);
+                    }
+                  },
+                ),
+              ],
+            ),
+            actions: [
+              TextButton(
+                onPressed: () => Navigator.pop(context),
+                child: const Text('取消'),
               ),
-              const SizedBox(height: 12),
-              DropdownButtonFormField<int>(
-                initialValue: selectedWeekday,
-                decoration: const InputDecoration(labelText: '目标星期'),
-                items: [
-                  for (var day = 1; day <= 7; day++)
-                    DropdownMenuItem(
-                      value: day,
-                      child: Text(_weekdayName(day)),
-                    ),
-                ],
-                onChanged: (value) {
-                  if (value != null) {
-                    setDialogState(() => selectedWeekday = value);
-                  }
-                },
+              FilledButton(
+                onPressed: () => Navigator.pop(context, (
+                  week: selectedWeek,
+                  weekday: selectedWeekday,
+                )),
+                child: const Text('保存'),
               ),
             ],
-          ),
-          actions: [
-            TextButton(
-              onPressed: () => Navigator.pop(context),
-              child: const Text('取消'),
-            ),
-            FilledButton(
-              onPressed: () => Navigator.pop(context, (
-                week: selectedWeek,
-                weekday: selectedWeekday,
-              )),
-              child: const Text('保存'),
-            ),
-          ],
-        ),
+          );
+        },
       ),
     );
     if (selected != null) {
@@ -439,6 +598,7 @@ class _DateHeader extends StatelessWidget {
   const _DateHeader({
     required this.date,
     required this.week,
+    required this.hasBackground,
     required this.onPrevious,
     required this.onNext,
     required this.onToday,
@@ -447,6 +607,9 @@ class _DateHeader extends StatelessWidget {
 
   final DateTime date;
   final int? week;
+
+  /// 有背景图时给整条日期栏垫一层半透明底色，否则文字会直接压在图片上读不清。
+  final bool hasBackground;
   final VoidCallback onPrevious;
   final VoidCallback onNext;
   final VoidCallback onToday;
@@ -454,61 +617,72 @@ class _DateHeader extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return Padding(
-      padding: const EdgeInsets.fromLTRB(12, 14, 12, 10),
-      child: Row(
-        children: [
-          IconButton(
-            onPressed: onPrevious,
-            icon: const Icon(Icons.chevron_left),
-          ),
-          Expanded(
-            child: Column(
-              children: [
-                Row(
-                  mainAxisAlignment: MainAxisAlignment.center,
-                  children: [
-                    InkWell(
-                      borderRadius: BorderRadius.circular(8),
-                      onTap: onToday,
-                      child: Text(
-                        '${date.month}月${date.day}日',
-                        style: const TextStyle(
-                          fontSize: 20,
-                          fontWeight: FontWeight.bold,
-                        ),
-                      ),
-                    ),
-                    const Text(' · ', style: TextStyle(fontSize: 20)),
-                    InkWell(
-                      borderRadius: BorderRadius.circular(8),
-                      onTap: onSelectWeek,
-                      child: Padding(
-                        padding: const EdgeInsets.symmetric(horizontal: 3),
-                        child: Text(
-                          week == null ? '学期外 ▾' : '第 $week 周 ▾',
-                          style: const TextStyle(
-                            fontSize: 20,
-                            fontWeight: FontWeight.bold,
+    final scheme = Theme.of(context).colorScheme;
+    return ColoredBox(
+      color: hasBackground
+          ? scheme.surface.withValues(alpha: 0.72)
+          : Colors.transparent,
+      child: Padding(
+        padding: const EdgeInsets.fromLTRB(12, 14, 12, 10),
+        child: Row(
+          children: [
+            IconButton(
+              onPressed: onPrevious,
+              icon: const Icon(Icons.chevron_left),
+            ),
+            Expanded(
+              child: Column(
+                children: [
+                  // 窄屏（如 360dp）上「9月18日 · 第 4 周 ▾」按 20 号字放不下会溢出。
+                  // 用 FittedBox 在空间不足时整体等比缩小，而不是硬挤出去。
+                  FittedBox(
+                    fit: BoxFit.scaleDown,
+                    child: Row(
+                      mainAxisSize: MainAxisSize.min,
+                      children: [
+                        InkWell(
+                          borderRadius: BorderRadius.circular(8),
+                          onTap: onToday,
+                          child: Text(
+                            '${date.month}月${date.day}日',
+                            style: const TextStyle(
+                              fontSize: 20,
+                              fontWeight: FontWeight.bold,
+                            ),
                           ),
                         ),
-                      ),
+                        const Text(' · ', style: TextStyle(fontSize: 20)),
+                        InkWell(
+                          borderRadius: BorderRadius.circular(8),
+                          onTap: onSelectWeek,
+                          child: Padding(
+                            padding: const EdgeInsets.symmetric(horizontal: 3),
+                            child: Text(
+                              week == null ? '学期外 ▾' : '第 $week 周 ▾',
+                              style: const TextStyle(
+                                fontSize: 20,
+                                fontWeight: FontWeight.bold,
+                              ),
+                            ),
+                          ),
+                        ),
+                      ],
                     ),
-                  ],
-                ),
-                const SizedBox(height: 2),
-                Text(
-                  '${date.year}年 · ${_weekdayName(date.weekday)}',
-                  style: TextStyle(
-                    fontSize: 11,
-                    color: Theme.of(context).colorScheme.onSurfaceVariant,
                   ),
-                ),
-              ],
+                  const SizedBox(height: 2),
+                  Text(
+                    '${date.year}年 · ${_weekdayName(date.weekday)}',
+                    style: TextStyle(
+                      fontSize: 11,
+                      color: scheme.onSurfaceVariant,
+                    ),
+                  ),
+                ],
+              ),
             ),
-          ),
-          IconButton(onPressed: onNext, icon: const Icon(Icons.chevron_right)),
-        ],
+            IconButton(onPressed: onNext, icon: const Icon(Icons.chevron_right)),
+          ],
+        ),
       ),
     );
   }
@@ -518,35 +692,35 @@ class _TodayView extends ConsumerWidget {
   const _TodayView({required this.date, required this.courses});
 
   final DateTime date;
-  final List<ScheduledCourse> courses;
+  final List<ScheduleEntry> courses;
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
     final now = ref.watch(clockProvider).valueOrNull ?? DateTime.now();
-    ScheduledCourse? next;
+    ScheduleEntry? next;
     if (_sameDay(date, now)) {
-      for (final course in courses) {
-        if (course.startTime.isAfter(now)) {
-          next = course;
+      for (final entry in courses) {
+        if (entry.startTime.isAfter(now)) {
+          next = entry;
           break;
         }
       }
     }
     if (courses.isEmpty) {
-      return const _EmptyCourses(message: '这一天没有课程');
+      return const _EmptyCourses(message: '这一天没有安排');
     }
     return ListView.separated(
       padding: const EdgeInsets.fromLTRB(20, 8, 20, 28),
       itemCount: courses.length,
       separatorBuilder: (_, __) => const SizedBox(height: 10),
       itemBuilder: (context, index) {
-        final course = courses[index];
-        final isNext = identical(course, next);
+        final entry = courses[index];
+        final isNext = identical(entry, next);
         return _CourseCard(
-          item: course,
+          item: entry,
           isNext: isNext,
           countdown: isNext
-              ? _countdown(course.startTime.difference(now))
+              ? _countdown(entry.startTime.difference(now))
               : null,
         );
       },
@@ -570,7 +744,7 @@ class _WeekView extends StatelessWidget {
       itemCount: 7,
       itemBuilder: (context, index) {
         final date = monday.add(Duration(days: index));
-        final courses = engine.getCoursesForDate(date);
+        final courses = engine.getEntriesForDate(date);
         return Padding(
           padding: const EdgeInsets.only(bottom: 18),
           child: Column(
@@ -588,7 +762,7 @@ class _WeekView extends StatelessWidget {
               ),
               if (courses.isEmpty)
                 Text(
-                  '没有课程',
+                  '没有安排',
                   style: TextStyle(
                     fontSize: 11,
                     color: Theme.of(context).colorScheme.onSurfaceVariant,
@@ -596,9 +770,9 @@ class _WeekView extends StatelessWidget {
                 )
               else
                 ...courses.map(
-                  (course) => Padding(
+                  (entry) => Padding(
                     padding: const EdgeInsets.only(bottom: 8),
-                    child: _CourseCard(item: course, compact: true),
+                    child: _CourseCard(item: entry, compact: true),
                   ),
                 ),
             ],
@@ -617,29 +791,46 @@ class _CourseCard extends ConsumerWidget {
     this.compact = false,
   });
 
-  final ScheduledCourse item;
+  final ScheduleEntry item;
   final bool isNext;
   final String? countdown;
   final bool compact;
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
-    final courseColor = Color(item.course.colorValue);
+    final itemColor = Color(
+      switch (item) {
+        CourseEntry(course: final scheduled) => scheduled.course.colorValue,
+        MemoEntry(memo: final memo) => memo.colorValue,
+      },
+    );
+    // 卡片底色跟随设置，但只在真的有背景图时才调低：否则移除背景图后
+    // 卡片会在纯色底上变成半透明，反而看不清。
+    final backgroundPath = ref.watch(backgroundImagePathProvider).valueOrNull;
+    final hasBackground =
+        backgroundPath != null && File(backgroundPath).existsSync();
+    final cardOpacity = hasBackground
+        ? ref.watch(cardOpacityProvider).valueOrNull ??
+              CardOpacityController.defaultOpacity
+        : CardOpacityController.defaultOpacity;
     return Card(
+      color: (Theme.of(context).cardTheme.color ?? Colors.white).withValues(
+        alpha: cardOpacity,
+      ),
       shape: RoundedRectangleBorder(
         borderRadius: BorderRadius.circular(16),
         side: isNext
-            ? BorderSide(color: courseColor.withValues(alpha: 0.7), width: 1.2)
+            ? BorderSide(color: itemColor.withValues(alpha: 0.7), width: 1.2)
             : BorderSide.none,
       ),
       child: ClipRRect(
         borderRadius: BorderRadius.circular(16),
         child: InkWell(
-          onLongPress: () => _editCourse(context, ref),
+          onLongPress: () => _editEntry(context, ref),
           child: IntrinsicHeight(
             child: Row(
               children: [
-                Container(width: 4, color: courseColor),
+                Container(width: 4, color: itemColor),
                 Expanded(
                   child: Padding(
                     padding: EdgeInsets.fromLTRB(
@@ -668,9 +859,17 @@ class _CourseCard extends ConsumerWidget {
                             children: [
                               Row(
                                 children: [
+                                  if (item.isMemo) ...[
+                                    Icon(
+                                      Icons.event_note_outlined,
+                                      size: 13,
+                                      color: itemColor,
+                                    ),
+                                    const SizedBox(width: 4),
+                                  ],
                                   Expanded(
                                     child: Text(
-                                      item.course.name,
+                                      item.title,
                                       style: const TextStyle(
                                         fontSize: 14,
                                         fontWeight: FontWeight.w600,
@@ -682,7 +881,7 @@ class _CourseCard extends ConsumerWidget {
                                       countdown!,
                                       style: TextStyle(
                                         fontSize: 11,
-                                        color: courseColor,
+                                        color: itemColor,
                                         fontWeight: FontWeight.w600,
                                       ),
                                     ),
@@ -690,7 +889,7 @@ class _CourseCard extends ConsumerWidget {
                               ),
                               const SizedBox(height: 5),
                               Text(
-                                [item.session.location, item.teacher]
+                                [item.location, item.teacher]
                                     .where((value) => value.isNotEmpty)
                                     .join(' · '),
                                 style: TextStyle(
@@ -704,13 +903,13 @@ class _CourseCard extends ConsumerWidget {
                           ),
                         ),
                         IconButton(
-                          tooltip: '更改课程颜色',
+                          tooltip: item.isMemo ? '更改备忘录颜色' : '更改课程颜色',
                           visualDensity: VisualDensity.compact,
                           onPressed: () => _pickColor(context, ref),
                           icon: Icon(
                             Icons.palette_outlined,
                             size: 18,
-                            color: courseColor,
+                            color: itemColor,
                           ),
                         ),
                       ],
@@ -725,18 +924,24 @@ class _CourseCard extends ConsumerWidget {
     );
   }
 
-  Future<void> _editCourse(BuildContext context, WidgetRef ref) async {
+  Future<void> _editEntry(BuildContext context, WidgetRef ref) async {
     final term = ref.read(scheduleControllerProvider).valueOrNull?.term;
     if (term == null) return;
     await Navigator.push<void>(
       context,
       MaterialPageRoute<void>(
-        builder: (_) => ManualCoursePage(
-          term: term,
-          course: item.course,
-          session: item.session,
-          date: item.startTime,
-        ),
+        builder: (_) => switch (item) {
+          CourseEntry(course: final scheduled) => ManualCoursePage(
+            term: term,
+            course: scheduled.course,
+            session: scheduled.session,
+            date: scheduled.startTime,
+          ),
+          MemoEntry(memo: final memo) => ManualCoursePage(
+            term: term,
+            memo: memo,
+          ),
+        },
       ),
     );
   }
@@ -759,7 +964,10 @@ class _CourseCard extends ConsumerWidget {
             mainAxisSize: MainAxisSize.min,
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
-              Text('选择课程颜色', style: Theme.of(context).textTheme.titleMedium),
+              Text(
+                item.isMemo ? '选择备忘录颜色' : '选择课程颜色',
+                style: Theme.of(context).textTheme.titleMedium,
+              ),
               const SizedBox(height: 18),
               Wrap(
                 spacing: 16,
@@ -784,37 +992,160 @@ class _CourseCard extends ConsumerWidget {
         ),
       ),
     );
-    if (selected != null) {
-      await ref
-          .read(scheduleControllerProvider.notifier)
-          .changeCourseColor(item.course.id, selected);
+    if (selected == null) return;
+    final notifier = ref.read(scheduleControllerProvider.notifier);
+    switch (item) {
+      case CourseEntry(course: final scheduled):
+        await notifier.changeCourseColor(scheduled.course.id, selected);
+      case MemoEntry(memo: final memo):
+        await notifier.changeMemoColor(memo.id, selected);
     }
   }
 }
 
-class _EmptyCourses extends StatelessWidget {
+/// 背景图 + 可调浓度的半透明遮罩。没有背景图时直接返回 [child]，
+/// 不额外套一层 Stack，保证未设置时的布局与从前完全一致。
+class _BackgroundImage extends StatelessWidget {
+  const _BackgroundImage({
+    required this.path,
+    required this.overlayOpacity,
+    required this.child,
+  });
+
+  final String? path;
+
+  /// 遮罩浓度，0.0 完全透明 ~ 1.0 全黑。由外观设置里的滑杆控制。
+  final double overlayOpacity;
+
+  final Widget child;
+
+  @override
+  Widget build(BuildContext context) {
+    final filePath = path;
+    // 文件被删掉或路径失效时静默降级为无背景图。
+    if (filePath == null || !File(filePath).existsSync()) return child;
+    return Stack(
+      fit: StackFit.expand,
+      children: [
+        Image.file(
+          File(filePath),
+          fit: BoxFit.cover,
+          // 图片解不开时只隐藏图片本身，不打断界面。
+          errorBuilder: (_, _, _) => const SizedBox.shrink(),
+        ),
+        if (overlayOpacity > 0)
+          IgnorePointer(
+            child: ColoredBox(
+              color: Color.fromRGBO(0, 0, 0, overlayOpacity.clamp(0.0, 1.0)),
+            ),
+          ),
+        child,
+      ],
+    );
+  }
+}
+
+/// 最近一次日期切换的方向：1 表示向后（更晚），-1 表示向前（更早）。
+/// 只用于给日期内容做一个横向滑入动画，让切换有方向感。
+final _dateChangeDirectionProvider = StateProvider<int>((ref) => 1);
+
+/// 日期变化时让内容横向滑入：新内容从切换方向的一侧进入，旧内容淡出。
+/// 与“切到本周课表”的标签页过渡观感一致。
+class _SlideOnDateChange extends StatelessWidget {
+  const _SlideOnDateChange({
+    required this.dateKey,
+    required this.direction,
+    required this.child,
+  });
+
+  /// 用日期本身作为 key：日期一变就触发一次进场动画。
+  final DateTime dateKey;
+  final int direction;
+  final Widget child;
+
+  @override
+  Widget build(BuildContext context) {
+    return AnimatedSwitcher(
+      duration: const Duration(milliseconds: 220),
+      switchInCurve: Curves.easeOutCubic,
+      switchOutCurve: Curves.easeInCubic,
+      transitionBuilder: (child, animation) {
+        // 按切换方向决定从哪一侧滑入；负方向（更早）则反过来。
+        final offset = Tween<Offset>(
+          begin: Offset(direction >= 0 ? 0.18 : -0.18, 0),
+          end: Offset.zero,
+        ).animate(animation);
+        return FadeTransition(
+          opacity: animation,
+          child: SlideTransition(position: offset, child: child),
+        );
+      },
+      child: KeyedSubtree(key: ValueKey(dateKey), child: child),
+    );
+  }
+}
+
+class _EmptyCourses extends ConsumerWidget {
   const _EmptyCourses({required this.message});
   final String message;
 
   @override
-  Widget build(BuildContext context) {
+  Widget build(BuildContext context, WidgetRef ref) {
+    final scheme = Theme.of(context).colorScheme;
+    final backgroundPath = ref.watch(backgroundImagePathProvider).valueOrNull;
+    final hasBackground =
+        backgroundPath != null && File(backgroundPath).existsSync();
+    final content = Column(
+      mainAxisSize: MainAxisSize.min,
+      children: [
+        Icon(
+          Icons.free_breakfast_outlined,
+          size: 42,
+          color: scheme.outline,
+        ),
+        const SizedBox(height: 12),
+        Text(
+          message,
+          style: TextStyle(color: scheme.onSurfaceVariant),
+        ),
+      ],
+    );
+    // 有背景图时给提示垫一层圆角底色，否则浅色文字压在图上读不清。
+    if (!hasBackground) return Center(child: content);
     return Center(
-      child: Column(
-        mainAxisSize: MainAxisSize.min,
-        children: [
-          Icon(
-            Icons.free_breakfast_outlined,
-            size: 42,
-            color: Theme.of(context).colorScheme.outline,
-          ),
-          const SizedBox(height: 12),
-          Text(
-            message,
-            style: TextStyle(
-              color: Theme.of(context).colorScheme.onSurfaceVariant,
-            ),
-          ),
-        ],
+      child: DecoratedBox(
+        decoration: BoxDecoration(
+          color: scheme.surface.withValues(alpha: 0.72),
+          borderRadius: BorderRadius.circular(16),
+        ),
+        child: Padding(padding: const EdgeInsets.all(20), child: content),
+      ),
+    );
+  }
+}
+
+/// 底部署名行。有背景图时垫一层半透明底色，否则这行小字会直接压在图片上
+/// 几乎看不见——与标题栏、日期栏是同一类问题。
+class _PoweredByFooter extends ConsumerWidget {
+  const _PoweredByFooter();
+
+  @override
+  Widget build(BuildContext context, WidgetRef ref) {
+    final scheme = Theme.of(context).colorScheme;
+    final backgroundPath = ref.watch(backgroundImagePathProvider).valueOrNull;
+    final hasBackground =
+        backgroundPath != null && File(backgroundPath).existsSync();
+    return ColoredBox(
+      color: hasBackground
+          ? scheme.surface.withValues(alpha: 0.72)
+          : Colors.transparent,
+      child: Padding(
+        padding: const EdgeInsets.symmetric(vertical: 6),
+        child: Text(
+          'Powered by Algernon',
+          textAlign: TextAlign.center,
+          style: TextStyle(fontSize: 10, color: scheme.onSurfaceVariant),
+        ),
       ),
     );
   }

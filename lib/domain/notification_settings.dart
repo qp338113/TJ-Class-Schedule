@@ -4,6 +4,7 @@ class NotificationSettings {
   const NotificationSettings({
     this.enabled = true,
     this.advanceMinutes = 30,
+    this.memoAdvanceMinutes = 30,
     this.onlyNextCourse = false,
     this.delayWhenInClass = true,
     this.showNextCourseOnLockScreen = false,
@@ -14,6 +15,9 @@ class NotificationSettings {
 
   final bool enabled;
   final int advanceMinutes;
+
+  /// 备忘录的全局提醒提前时间，与课程的 [advanceMinutes] 相互独立。
+  final int memoAdvanceMinutes;
   final bool onlyNextCourse;
   final bool delayWhenInClass;
   final bool showNextCourseOnLockScreen;
@@ -24,6 +28,7 @@ class NotificationSettings {
   NotificationSettings copyWith({
     bool? enabled,
     int? advanceMinutes,
+    int? memoAdvanceMinutes,
     bool? onlyNextCourse,
     bool? delayWhenInClass,
     bool? showNextCourseOnLockScreen,
@@ -34,6 +39,7 @@ class NotificationSettings {
     return NotificationSettings(
       enabled: enabled ?? this.enabled,
       advanceMinutes: advanceMinutes ?? this.advanceMinutes,
+      memoAdvanceMinutes: memoAdvanceMinutes ?? this.memoAdvanceMinutes,
       onlyNextCourse: onlyNextCourse ?? this.onlyNextCourse,
       delayWhenInClass: delayWhenInClass ?? this.delayWhenInClass,
       showNextCourseOnLockScreen:

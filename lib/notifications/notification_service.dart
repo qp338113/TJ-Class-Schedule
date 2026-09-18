@@ -78,7 +78,8 @@ class NotificationService {
       body: '如果你看到这条消息，通知显示功能正常。',
       notificationDetails: NotificationDetails(
         android: AndroidNotificationDetails(
-          'course_reminder_test_${mode.name}',
+          // 必须换新渠道 id：Android 不允许调高已存在渠道的重要性
+          'course_reminder_test_v2_${mode.name}',
           '提醒功能测试',
           channelDescription: '用于检查通知、震动和声音设置',
           importance: Importance.high,
@@ -99,7 +100,9 @@ class NotificationService {
     required NotificationSettings settings,
     DateTime? now,
   }) async {
-    await _plugin.cancelAll();
+    // 只能清"未触发"的定时通知：cancelAll() 会连已经显示在通知栏里的提醒一起删掉，
+    // 导致用户刚看到的提醒莫名消失。
+    await _plugin.cancelAllPendingNotifications();
     final term = schedule.term;
     if (term == null || !settings.enabled) return 0;
     if (!await canScheduleExactNotifications()) return 0;
@@ -108,6 +111,7 @@ class NotificationService {
       now: currentTime,
       term: term,
       courses: schedule.courses,
+      memos: schedule.memos,
       adjustments: schedule.adjustments,
       cancellations: schedule.cancellations,
       settings: settings,
@@ -121,20 +125,24 @@ class NotificationService {
       settings: settings,
     );
     final alertMode = settings.alertMode;
-    final details = NotificationDetails(
-      android: AndroidNotificationDetails(
-        'course_reminders_${alertMode.name}',
-        '上课提醒',
-        channelDescription: '在课程开始前提醒',
-        importance: Importance.high,
-        priority: Priority.high,
-        icon: 'ic_notification',
-        playSound: alertMode == ReminderAlertMode.soundAndVibration,
-        enableVibration: alertMode != ReminderAlertMode.notificationOnly,
-      ),
-    );
     for (final plan in plans) {
       final time = plan.scheduledAt;
+      final details = NotificationDetails(
+        android: AndroidNotificationDetails(
+          // 必须换新渠道 id：Android 不允许调高已存在渠道的重要性
+          'course_reminders_v2_${alertMode.name}',
+          '上课提醒',
+          channelDescription: '在课程开始前提醒',
+          importance: Importance.high,
+          priority: Priority.high,
+          icon: 'ic_notification',
+          category: AndroidNotificationCategory.reminder,
+          playSound: alertMode == ReminderAlertMode.soundAndVibration,
+          enableVibration: alertMode != ReminderAlertMode.notificationOnly,
+          // 展开成大文本样式，让提醒在通知栏里更显眼
+          styleInformation: BigTextStyleInformation(plan.body),
+        ),
+      );
       await _plugin.zonedSchedule(
         id: plan.id,
         title: plan.title,

@@ -97,4 +97,41 @@ void main() {
     expect(engine.getCoursesForDate(DateTime(2026, 9, 25)), isEmpty);
     expect(engine.adjustmentForDate(DateTime(2026, 9, 25))?.holidayName, '中秋节');
   });
+
+  group('教学周与日期互换', () {
+    final term = Term(
+      id: 'term',
+      name: '测试学期',
+      firstWeekMonday: DateTime(2026, 9, 14),
+      totalWeeks: 18,
+      periodsByWeekday: {
+        1: const [LessonPeriod(number: 1, startMinutes: 480, endMinutes: 525)],
+      },
+    );
+
+    test('9月20日补第 4 周周二：日期能算出周次和星期', () {
+      // 第 4 周周二是 10 月 6 日；9 月 20 日是第 1 周周日。
+      expect(term.dateOf(4, DateTime.tuesday), DateTime(2026, 10, 6));
+      expect(term.weekOf(DateTime(2026, 10, 6)), 4);
+      expect(DateTime(2026, 10, 6).weekday, DateTime.tuesday);
+    });
+
+    test('任意日期都能还原成周次加星期', () {
+      for (var week = 1; week <= term.totalWeeks; week++) {
+        for (var weekday = 1; weekday <= 7; weekday++) {
+          final date = term.dateOf(week, weekday);
+          expect(term.weekOf(date), week, reason: '第 $week 周$weekday 无法还原');
+          expect(date.weekday, weekday);
+        }
+      }
+    });
+
+    test('学期开始前与结束后返回 null', () {
+      expect(term.weekOf(DateTime(2026, 9, 13)), isNull);
+      expect(term.weekOf(term.firstWeekMonday), 1);
+      expect(term.lastDay, DateTime(2027, 1, 17));
+      expect(term.weekOf(term.lastDay), term.totalWeeks);
+      expect(term.weekOf(term.lastDay.add(const Duration(days: 1))), isNull);
+    });
+  });
 }

@@ -42,7 +42,7 @@ class _MagicOsGuidePageState extends ConsumerState<MagicOsGuidePage> {
               title: '允许应用自动启动',
               lines: [
                 '在系统设置中搜索“自启动”或“应用启动管理”',
-                '找到“离线课程表”并关闭自动管理',
+                '找到“TJ Class Schedule”并关闭自动管理',
                 '允许自启动、允许关联启动、允许后台活动全部打开',
               ],
             ),
@@ -59,7 +59,7 @@ class _MagicOsGuidePageState extends ConsumerState<MagicOsGuidePage> {
               title: '忽略电池优化',
               lines: [
                 '在系统设置中搜索“电池优化”或“后台耗电管理”',
-                '找到“离线课程表”',
+                '找到“TJ Class Schedule”',
                 '选择不优化、无限制或允许后台高耗电',
               ],
             ),
@@ -136,11 +136,11 @@ class _VendorPaths extends StatelessWidget {
           ),
           _VendorTile(
             name: '小米 / Redmi · HyperOS / MIUI',
-            path: '设置 > 应用设置 > 应用管理 > 离线课程表；开启自启动，省电策略选“无限制”',
+            path: '设置 > 应用设置 > 应用管理 > TJ Class Schedule；开启自启动，省电策略选“无限制”',
           ),
           _VendorTile(
             name: 'OPPO / 一加 / realme · ColorOS',
-            path: '设置 > 应用 > 自启动；允许离线课程表自启动和后台活动',
+            path: '设置 > 应用 > 自启动；允许 TJ Class Schedule 自启动和后台活动',
           ),
           _VendorTile(
             name: 'vivo / iQOO · OriginOS',

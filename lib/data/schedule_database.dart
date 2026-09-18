@@ -19,7 +19,7 @@ class ScheduleDatabase {
     final database = await selectedFactory.openDatabase(
       databasePath,
       options: OpenDatabaseOptions(
-        version: 6,
+        version: 7,
         onConfigure: (db) => db.execute('PRAGMA foreign_keys = ON'),
         onCreate: _createTables,
         onUpgrade: (db, oldVersion, newVersion) async {
@@ -39,6 +39,7 @@ class ScheduleDatabase {
               'ALTER TABLE national_makeup_days ADD COLUMN holiday_name TEXT',
             );
           }
+          if (oldVersion < 7) await _createMemosTable(db);
         },
       ),
     );
@@ -95,6 +96,7 @@ class ScheduleDatabase {
     await _createSettingsTable(db);
     await _createMakeupDaysTable(db);
     await _createCourseCancellationsTable(db);
+    await _createMemosTable(db);
   }
 
   static Future<void> _createSettingsTable(Database db) {
@@ -124,6 +126,29 @@ class ScheduleDatabase {
         session_id TEXT NOT NULL,
         date TEXT NOT NULL,
         PRIMARY KEY (session_id, date)
+      )
+    ''');
+  }
+
+  static Future<void> _createMemosTable(Database db) {
+    return db.execute('''
+      CREATE TABLE memos (
+        id TEXT PRIMARY KEY,
+        term_id TEXT NOT NULL,
+        title TEXT NOT NULL,
+        location TEXT NOT NULL,
+        color_value INTEGER NOT NULL,
+        weekday INTEGER,
+        start_period INTEGER,
+        end_period INTEGER,
+        start_week INTEGER,
+        end_week INTEGER,
+        week_type TEXT,
+        explicit_weeks TEXT,
+        date TEXT,
+        start_minutes INTEGER,
+        end_minutes INTEGER,
+        FOREIGN KEY (term_id) REFERENCES terms(id) ON DELETE CASCADE
       )
     ''');
   }
@@ -169,13 +194,30 @@ class ScheduleDatabase {
 
   Future<void> replaceTermSchedule(Term term, Iterable<Course> courses) async {
     await database.transaction((txn) async {
-      await txn.delete('terms', where: 'id = ?', whereArgs: [term.id]);
-      await txn.insert('terms', {
-        'id': term.id,
-        'name': term.name,
-        'first_week_monday': term.firstWeekMonday.toIso8601String(),
-        'total_weeks': term.totalWeeks,
-      });
+      // 更新学期而不是先删后插：删除 terms 行会经外键级联删掉该学期的备忘录。
+      final updated = await txn.update(
+        'terms',
+        {
+          'name': term.name,
+          'first_week_monday': term.firstWeekMonday.toIso8601String(),
+          'total_weeks': term.totalWeeks,
+        },
+        where: 'id = ?',
+        whereArgs: [term.id],
+      );
+      if (updated == 0) {
+        await txn.insert('terms', {
+          'id': term.id,
+          'name': term.name,
+          'first_week_monday': term.firstWeekMonday.toIso8601String(),
+          'total_weeks': term.totalWeeks,
+        });
+      }
+      await txn.delete(
+        'lesson_periods',
+        where: 'term_id = ?',
+        whereArgs: [term.id],
+      );
       for (final entry in term.periodsByWeekday.entries) {
         for (final period in entry.value) {
           await txn.insert('lesson_periods', {
@@ -187,6 +229,7 @@ class ScheduleDatabase {
           });
         }
       }
+      await txn.delete('courses', where: 'term_id = ?', whereArgs: [term.id]);
       for (final course in courses) {
         await txn.insert('courses', {
           'id': course.id,
@@ -300,6 +343,71 @@ class ScheduleDatabase {
     return (term: term, courses: List<Course>.unmodifiable(courses));
   }
 
+  Future<List<Memo>> loadMemos(String termId) async {
+    final rows = await database.query(
+      'memos',
+      where: 'term_id = ?',
+      whereArgs: [termId],
+      orderBy: 'rowid',
+    );
+    final memos = rows.map((row) {
+      final explicitText = row['explicit_weeks'] as String?;
+      final dateText = row['date'] as String?;
+      final startWeek = row['start_week'] as int?;
+      return Memo(
+        id: row['id'] as String,
+        title: row['title'] as String,
+        location: row['location'] as String,
+        colorValue: row['color_value'] as int,
+        weekday: row['weekday'] as int?,
+        startPeriod: row['start_period'] as int?,
+        endPeriod: row['end_period'] as int?,
+        weekRule: startWeek == null
+            ? null
+            : WeekRule(
+                startWeek: startWeek,
+                endWeek: row['end_week'] as int,
+                type: WeekType.values.byName(row['week_type'] as String),
+                explicitWeeks: explicitText == null || explicitText.isEmpty
+                    ? null
+                    : explicitText.split(',').map(int.parse).toSet(),
+              ),
+        date: dateText == null ? null : DateTime.parse(dateText),
+        startMinutes: row['start_minutes'] as int?,
+        endMinutes: row['end_minutes'] as int?,
+      );
+    }).toList();
+    return List<Memo>.unmodifiable(memos);
+  }
+
+  Future<void> replaceTermMemos(String termId, Iterable<Memo> memos) async {
+    await database.transaction((txn) async {
+      await txn.delete('memos', where: 'term_id = ?', whereArgs: [termId]);
+      for (final memo in memos) {
+        final weekRule = memo.weekRule;
+        final explicitWeeks = weekRule?.explicitWeeks?.toList();
+        explicitWeeks?.sort();
+        await txn.insert('memos', {
+          'id': memo.id,
+          'term_id': termId,
+          'title': memo.title,
+          'location': memo.location,
+          'color_value': memo.colorValue,
+          'weekday': memo.weekday,
+          'start_period': memo.startPeriod,
+          'end_period': memo.endPeriod,
+          'start_week': weekRule?.startWeek,
+          'end_week': weekRule?.endWeek,
+          'week_type': weekRule?.type.name,
+          'explicit_weeks': explicitWeeks?.join(','),
+          'date': memo.date == null ? null : _dateKey(memo.date!),
+          'start_minutes': memo.startMinutes,
+          'end_minutes': memo.endMinutes,
+        });
+      }
+    });
+  }
+
   Future<NotificationSettings> loadNotificationSettings() async {
     final rows = await database.query('app_settings');
     final values = {
@@ -308,6 +416,8 @@ class ScheduleDatabase {
     return NotificationSettings(
       enabled: values['notifications_enabled'] != 'false',
       advanceMinutes: int.tryParse(values['advance_minutes'] ?? '') ?? 30,
+      memoAdvanceMinutes:
+          int.tryParse(values['memo_advance_minutes'] ?? '') ?? 30,
       onlyNextCourse: values['only_next_course'] == 'true',
       delayWhenInClass: values['delay_when_in_class'] != 'false',
       showNextCourseOnLockScreen:
@@ -440,10 +550,21 @@ class ScheduleDatabase {
     }, conflictAlgorithm: ConflictAlgorithm.replace);
   }
 
+  /// 只清掉替代课表，保留这一天“调休上班日”的记录。
+  ///
+  /// 直接删行会让调休提示一并消失，用户就再也找不到设置入口了。
+  Future<void> clearReplacementSchedule(DateTime date) {
+    return database.update('national_makeup_days', {
+      'replacement_week': null,
+      'replacement_weekday': null,
+    }, where: 'date = ?', whereArgs: [_dateKey(date)]);
+  }
+
   Future<void> saveNotificationSettings(NotificationSettings settings) async {
     final values = {
       'notifications_enabled': '${settings.enabled}',
       'advance_minutes': '${settings.advanceMinutes}',
+      'memo_advance_minutes': '${settings.memoAdvanceMinutes}',
       'only_next_course': '${settings.onlyNextCourse}',
       'delay_when_in_class': '${settings.delayWhenInClass}',
       'show_next_course_on_lock_screen':

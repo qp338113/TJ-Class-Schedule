@@ -188,4 +188,164 @@ void main() {
     expect(enabled.first.title, '下一节课：数学');
     expect(enabled.first.body, '08:00 · A101 · 张老师');
   });
+
+  test('备忘录使用 memoAdvanceMinutes 而不是课程的 advanceMinutes', () {
+    final memos = [
+      Memo(
+        id: 'memo-monday',
+        title: '交作业',
+        location: '图书馆',
+        colorValue: 0,
+        date: DateTime(2026, 9, 8),
+        startMinutes: 600,
+        endMinutes: 660,
+      ),
+    ];
+
+    final plans = planner.createPlans(
+      now: DateTime(2026, 9, 8, 8),
+      term: term,
+      courses: const [],
+      memos: memos,
+      // 课程提前 5 分钟、备忘录提前 15 分钟，用不同取值证明用了正确那个。
+      settings: const NotificationSettings(
+        advanceMinutes: 5,
+        memoAdvanceMinutes: 15,
+      ),
+    );
+
+    expect(plans, hasLength(1));
+    expect(plans.single.scheduledAt, DateTime(2026, 9, 8, 9, 45));
+  });
+
+  test('课程仍使用 advanceMinutes，与备忘录互不影响', () {
+    final memos = [
+      Memo(
+        id: 'memo-monday',
+        title: '交作业',
+        colorValue: 0,
+        date: DateTime(2026, 9, 7),
+        startMinutes: 720,
+        endMinutes: 780,
+      ),
+    ];
+
+    final plans = planner.createPlans(
+      now: DateTime(2026, 9, 7, 7),
+      term: term,
+      courses: courses,
+      memos: memos,
+      settings: const NotificationSettings(
+        advanceMinutes: 10,
+        memoAdvanceMinutes: 20,
+        delayWhenInClass: false,
+      ),
+    );
+
+    expect(
+      plans.map((plan) => (plan.title, plan.scheduledAt)),
+      [
+        ('数学 即将上课', DateTime(2026, 9, 7, 7, 50)),
+        ('交作业 即将开始', DateTime(2026, 9, 7, 11, 40)),
+        ('英语 即将上课', DateTime(2026, 9, 8, 7, 50)),
+      ],
+    );
+  });
+
+  test('备忘录文案用“即将开始”并带上时间与地点', () {
+    final memos = [
+      Memo(
+        id: 'memo-location',
+        title: '开班会',
+        location: 'B202',
+        colorValue: 0,
+        date: DateTime(2026, 9, 8),
+        startMinutes: 600,
+        endMinutes: 660,
+      ),
+      Memo(
+        id: 'memo-no-location',
+        title: '取快递',
+        colorValue: 0,
+        date: DateTime(2026, 9, 8),
+        startMinutes: 800,
+        endMinutes: 830,
+      ),
+    ];
+
+    final plans = planner.createPlans(
+      now: DateTime(2026, 9, 8, 8),
+      term: term,
+      courses: const [],
+      memos: memos,
+      settings: const NotificationSettings(memoAdvanceMinutes: 0),
+    );
+
+    expect(plans.map((plan) => plan.title), ['开班会 即将开始', '取快递 即将开始']);
+    expect(plans.first.body, '10:00 · B202');
+    expect(plans.last.body, '13:20');
+    // 备忘录不显示教师，正文里也不会出现“上课”。
+    expect(plans.first.body.contains('上课'), isFalse);
+  });
+
+  test('仅提醒最近一件事时对课程与备忘录合并结果生效', () {
+    final memos = [
+      // 09:00 开始，提前 30 分钟 => 08:30 提醒，比两门课都早。
+      Memo(
+        id: 'memo-early',
+        title: '交作业',
+        colorValue: 0,
+        date: DateTime(2026, 9, 9),
+        startMinutes: 540,
+        endMinutes: 570,
+      ),
+    ];
+
+    final plans = planner.createPlans(
+      now: DateTime(2026, 9, 9, 7),
+      term: term,
+      courses: courses,
+      memos: memos,
+      settings: const NotificationSettings(
+        onlyNextCourse: true,
+        delayWhenInClass: false,
+      ),
+    );
+
+    expect(plans, hasLength(1));
+    expect(plans.single.title, '交作业 即将开始');
+    expect(plans.single.scheduledAt, DateTime(2026, 9, 9, 8, 30));
+  });
+
+  test('关闭总开关时备忘录也不排程', () {
+    final plans = planner.createPlans(
+      now: DateTime(2026, 9, 8, 8),
+      term: term,
+      courses: const [],
+      memos: [
+        Memo(
+          id: 'memo-monday',
+          title: '交作业',
+          colorValue: 0,
+          date: DateTime(2026, 9, 8),
+          startMinutes: 600,
+          endMinutes: 660,
+        ),
+      ],
+      settings: const NotificationSettings(enabled: false),
+    );
+
+    expect(plans, isEmpty);
+  });
+
+  test('锁屏计划仍然只包含课程，不出现备忘录', () {
+    final plans = planner.createLockScreenPlans(
+      now: DateTime(2026, 9, 7, 6),
+      term: term,
+      courses: courses,
+      settings: const NotificationSettings(showNextCourseOnLockScreen: true),
+    );
+
+    expect(plans.map((plan) => plan.title), ['下一节课：数学', '下一节课：英语']);
+  });
 }

@@ -1,0 +1,7 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- 自定义颜色用的纯白底：本身不填色，靠 Kotlin 侧的 backgroundTintList 染色，
+     这样既保留 22dp 圆角，又能取到任意颜色（描边会被一起染色，所以不放 stroke）。 -->
+<shape xmlns:android="http://schemas.android.com/apk/res/android" android:shape="rectangle">
+    <solid android:color="#FFFFFF" />
+    <corners android:radius="22dp" />
+</shape>

@@ -79,6 +79,16 @@ class NotificationSettingsPage extends ConsumerWidget {
                         : null,
                   ),
                   const Divider(height: 1, indent: 16),
+                  ListTile(
+                    enabled: settings.enabled,
+                    title: const Text('备忘录提前时间'),
+                    subtitle: const Text('可设置 1 到 1440 分钟'),
+                    trailing: Text('${settings.memoAdvanceMinutes} 分钟'),
+                    onTap: settings.enabled
+                        ? () => _editMemoAdvanceMinutes(context, ref, settings)
+                        : null,
+                  ),
+                  const Divider(height: 1, indent: 16),
                   SwitchListTile(
                     title: const Text('仅提醒下一节'),
                     subtitle: const Text('未来 7 天只保留时间最近的一条提醒'),
@@ -181,6 +191,21 @@ class NotificationSettingsPage extends ConsumerWidget {
     );
     if (value != null) {
       await _update(ref, settings.copyWith(advanceMinutes: value));
+    }
+  }
+
+  Future<void> _editMemoAdvanceMinutes(
+    BuildContext context,
+    WidgetRef ref,
+    NotificationSettings settings,
+  ) async {
+    final value = await showDialog<int>(
+      context: context,
+      builder: (_) =>
+          _AdvanceMinutesDialog(initialValue: settings.memoAdvanceMinutes),
+    );
+    if (value != null) {
+      await _update(ref, settings.copyWith(memoAdvanceMinutes: value));
     }
   }
 

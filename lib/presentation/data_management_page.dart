@@ -58,6 +58,7 @@ class _DataManagementPageState extends ConsumerState<DataManagementPage> {
         ScheduleBackup(
           term: schedule!.term!,
           courses: schedule.courses,
+          memos: schedule.memos,
           adjustments: schedule.adjustments,
           cancellations: schedule.cancellations,
           settings: settings,

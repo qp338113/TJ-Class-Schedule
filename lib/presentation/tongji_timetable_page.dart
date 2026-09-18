@@ -339,18 +339,86 @@ const _extractTimetableScript = r'''
     }
     return false;
   };
-  const weekFieldOf = (value) => {
-    const weekFields = value.match(/\[[^\]]+\]/g) || [];
-    const courseCodes = value.match(/\([A-Za-z]{2,}[A-Za-z0-9_-]*\)/g) || [];
-    if (weekFields.length !== 1 || courseCodes.length > 1) return null;
-    const inner = weekFields[0].slice(1, -1);
-    return isWeekField(inner) ? inner : null;
+  // 取文字层所属的「格子」——向上最近的有色卡片盒。
+  //
+  // 节次必须由格子决定，而不是由文字层自身的高度决定。同一格叠放多门课时，
+  // 文字层只占格内一小段：用它自己的高度去数节次，会得出「5-5」「6-6」这类
+  // 互不重叠的错误区间，中间那段更会因为没有压住任何一行节次中心而被整条丢掉。
+  // 格内所有课程都属于该格覆盖的节次（弹窗也按格给出节次，两者一致）。
+  const cardCellOf = (element) => {
+    let node = element;
+    for (let depth = 0; depth < 4 && node; depth++) {
+      if (hasCourseCardBackground(node)) return node;
+      node = node.parentElement || null;
+    }
+    return null;
+  };
+  const weekFieldPattern = /\[[^\]]+\]/g;
+  // 教师「姓名(工号)」。姓名限 2-4 个字：中文姓名不会更长，而放宽到 8 字会让
+  // 正则把上一门课的地点一并吞进来（`土木学院机房张博珊(19633)`）。
+  const teacherIdPattern = /[\u4e00-\u9fa5]{2,4}\(\d{2,8}\)/g;
+  // 元素文本里是否含合法的 [周次]。一格叠放多条排课时，它们可能同属一个元素，
+  // 因此这里允许出现多个 [周次]，由下面的 splitCourseText 逐条切开。
+  const hasWeekField = (value) => {
+    const weekFields = value.match(weekFieldPattern) || [];
+    return weekFields.some((field) => isWeekField(field.slice(1, -1)));
+  };
+  // 把一个元素里的多门课切成多条文本。
+  //
+  // 同一格叠放多门课时，每门课各自的文字层未必是独立元素：整格的文字可能
+  // 全在一个元素里（innerText 由此得到多行）。此时文本里有多个 [周次]，
+  // 若整格拒绝就会**一条都读不到**（真实反馈：周四 5-6 节 Auto CAD 制图
+  // 三段周次、三位老师，常整格识别不到）。
+  //
+  // 切分边界取「下一条的教师(工号)」的起点：两个 [周次] 之间的内容形如
+  // `…上一条地点  教师名(工号) 课程名(课程代码)`，其中最后出现的
+  // `名(工号)` 属于下一条。找不到可靠的边界时返回 null（宁可不读这一格，
+  // 也不把两条课的内容混成一条），该格仍可由「排课信息」浮层路径补回。
+  //
+  // 关键校验：下一条的教师名**必须与前一条的地点用空白隔开**。
+  // 若整格文本完全没有分隔（`土木学院机房张博珊(19633)`），上面那条规则会把
+  // 上一条的地点一并当成教师名（得到「土木学院机房张博珊」），
+  // 那是**错误数据**，比不识别更糟，因此一律拒绝。
+  const splitCourseText = (value) => {
+    const weeks = [];
+    weekFieldPattern.lastIndex = 0;
+    for (const match of value.matchAll(weekFieldPattern)) {
+      if (isWeekField(match[0].slice(1, -1))) weeks.push(match);
+    }
+    if (weeks.length <= 1) return [value];
+    const cuts = [0];
+    for (let index = 1; index < weeks.length; index++) {
+      const from = weeks[index - 1].index + weeks[index - 1][0].length;
+      const to = weeks[index].index;
+      const gap = value.slice(from, to);
+      const found = [...gap.matchAll(teacherIdPattern)];
+      if (found.length === 0) return null;
+      const last = found[found.length - 1];
+      const cut = from + last.index;
+      if (cut > 0 && !/\s/.test(value[cut - 1])) return null;
+      cuts.push(cut);
+    }
+    cuts.push(value.length);
+    const chunks = [];
+    for (let index = 0; index < cuts.length - 1; index++) {
+      const chunk = value.slice(cuts[index], cuts[index + 1]).trim();
+      if (chunk) chunks.push(chunk);
+    }
+    return chunks.length > 0 ? chunks : null;
   };
   const matched = [];
   for (const element of scheduleElements) {
     const value = text(element);
-    if (weekFieldOf(value) === null || !hasCardBackgroundNearby(element)) continue;
-    matched.push({element, value, rect: element.getBoundingClientRect()});
+    if (!hasWeekField(value) || !hasCardBackgroundNearby(element)) continue;
+    const chunks = splitCourseText(value);
+    if (chunks === null) continue;
+    for (const chunk of chunks) {
+      matched.push({
+        element,
+        value: chunk,
+        rect: element.getBoundingClientRect(),
+      });
+    }
   }
   // 同一张卡片的外层彩色盒子和内层文字层都会命中：文本相同，但盒子跨多个节次、
   // 文字层只有一行高，直接去重会留下两条。按面积从大到小只保留最外层那个。
@@ -389,7 +457,12 @@ const _extractTimetableScript = r'''
   const seen = new Set();
   for (const candidate of candidates) {
     const element = candidate.element;
-    const rect = candidate.rect;
+    // 星期与节次都以「格子」为准，而不是文字层自身。
+    // 同一格叠放多门课时，文字层只占格内一小段：用它的高度去数节次会得到
+    // 互不重叠的错误区间，中间那段更会因没压住任何节次中心而被整条丢弃。
+    // 格内所有课程都属于该格覆盖的节次。
+    const cell = cardCellOf(element);
+    const rect = cell ? cell.getBoundingClientRect() : candidate.rect;
     const centerX = rect.left + rect.width / 2;
     const centerY = rect.top + rect.height / 2;
     // 卡片必须落在某一周几列内，且宽度不超过一列，避免抓到左侧“第N节课”栏或跨列容器。

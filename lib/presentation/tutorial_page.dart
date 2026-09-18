@@ -48,6 +48,16 @@ class TutorialPage extends StatelessWidget {
           ),
           _TutorialStep(
             number: '5',
+            icon: Icons.info_outline,
+            title: '点课程看详细信息',
+            text:
+                '在课表里点一下任意课程，会显示这门课的详细信息：教师、地点、星期、节次、周次和具体日期，'
+                '并给出这个时间段对应的钟点；同一门课有多个时间段时会全部列出。'
+                '万一从 1 系统导入的课程和网页上不一致，打开这里对照最上面的「信息摘要」，'
+                '就能看出是星期、节次、周次、教师还是地点读错了。长按课程卡片才是修改。',
+          ),
+          _TutorialStep(
+            number: '6',
             icon: Icons.event_note_outlined,
             title: '添加备忘录',
             text:
@@ -56,7 +66,7 @@ class TutorialPage extends StatelessWidget {
                 '备忘录会显示在课表里、桌面小组件里，也会按你设置的提前时间提醒。',
           ),
           _TutorialStep(
-            number: '6',
+            number: '7',
             icon: Icons.palette_outlined,
             title: '换成自己喜欢的样式',
             text:
@@ -65,7 +75,7 @@ class TutorialPage extends StatelessWidget {
                 '“遮罩浓度”和“课表透明度”两个滑杆可以自己调，让课程文字看得更清楚。',
           ),
           _TutorialStep(
-            number: '7',
+            number: '8',
             icon: Icons.event_repeat_outlined,
             title: '遇到国家调休',
             text:
@@ -75,7 +85,7 @@ class TutorialPage extends StatelessWidget {
                 '选错了点“取消”即可恢复按实际周次上课。',
           ),
           _TutorialStep(
-            number: '8',
+            number: '9',
             icon: Icons.notifications_active_outlined,
             title: '设置上课提醒',
             text:
@@ -83,7 +93,7 @@ class TutorialPage extends StatelessWidget {
                 '如果提醒时间正在上另一节课，默认会延后到下课 3 分钟后。备忘录的提前时间可以在同一页单独设置。',
           ),
           _TutorialStep(
-            number: '9',
+            number: '10',
             icon: Icons.widgets_outlined,
             title: '添加桌面小组件',
             text:
@@ -91,7 +101,7 @@ class TutorialPage extends StatelessWidget {
                 '安装或修改课表后，请打开 App 一次让小组件同步；如果刚装新版看不到变化，把小组件删掉重新添加即可。',
           ),
           _TutorialStep(
-            number: '10',
+            number: '11',
             icon: Icons.timer_outlined,
             title: '调整小组件外观与刷新',
             text:
@@ -99,7 +109,7 @@ class TutorialPage extends StatelessWidget {
                 '下面的“倒计时刷新频率”有三档：省电（更省电，数字可能有几分钟不准）、正常（每分钟刷新）、精确（每秒刷新，最准但最耗电）。',
           ),
           _TutorialStep(
-            number: '11',
+            number: '12',
             icon: Icons.battery_saver_outlined,
             title: '完成后台放行',
             text:

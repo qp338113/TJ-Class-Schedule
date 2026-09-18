@@ -59,10 +59,19 @@ void main() {
     expect(find.text('添加课程'), findsOneWidget);
     expect(find.text('Powered by Algernon'), findsOneWidget);
 
+    // 点一下打开课程详情（用来与 1 系统「排课信息」对照，排查识别问题），
+    // 不再直接进入编辑。详情面板里有「上课周」字段，只有它会出现。
     await tester.tap(find.text('高等数学'));
     await tester.pumpAndSettle();
+    expect(find.text('上课周'), findsOneWidget);
     expect(find.text('修改课程'), findsNothing);
 
+    // 点面板外关掉它。
+    await tester.tapAt(const Offset(10, 10));
+    await tester.pumpAndSettle();
+    expect(find.text('上课周'), findsNothing);
+
+    // 长按才进入编辑。
     await tester.longPress(find.text('高等数学'));
     await tester.pumpAndSettle();
     expect(find.text('修改课程'), findsOneWidget);

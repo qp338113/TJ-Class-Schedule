@@ -5,6 +5,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter/physics.dart';
 
 import '../domain/schedule_models.dart';
+import 'course_detail_sheet.dart';
 
 /// 把平移量夹到合法范围，是整周课表缩放/拖动行为的唯一裁剪入口。
 ///
@@ -249,21 +250,30 @@ class _FullTimetablePageState extends State<FullTimetablePage>
                       onScaleStart: _onScaleStart,
                       onScaleUpdate: _onScaleUpdate,
                       onScaleEnd: _onScaleEnd,
-                      child: Transform(
-                        transform: Matrix4.identity()
-                          ..translateByDouble(
-                            _offset.dx,
-                            _offset.dy,
-                            0,
-                            1,
-                          )
-                          ..scaleByDouble(_scale, _scale, 1, 1),
-                        child: OverflowBox(
-                          alignment: Alignment.topLeft,
-                          minWidth: 0,
-                          maxWidth: double.infinity,
-                          minHeight: 0,
-                          maxHeight: double.infinity,
+                      // OverflowBox 必须在 Transform **外面**，顺序不能反。
+                      //
+                      // 命中测试时 RenderBox 会先判断「点是否落在自身尺寸内」。
+                      // OverflowBox 的尺寸被父约束夹到视口大小（内容比视口大时
+                      // 它只会溢出、不会撑大自己）。若 Transform 在外，传进来的
+                      // 已是反变换后的**内容坐标**，一旦超出视口尺寸就被拦掉，
+                      // 表现为只有靠左上角的卡片能点开，右下角的点不动。
+                      // 官方 InteractiveViewer 也是这个顺序：先过 OverflowBox
+                      // （拿到视口坐标，必定通过），再由 Transform 反变换成内容坐标。
+                      child: OverflowBox(
+                        alignment: Alignment.topLeft,
+                        minWidth: 0,
+                        maxWidth: double.infinity,
+                        minHeight: 0,
+                        maxHeight: double.infinity,
+                        child: Transform(
+                          transform: Matrix4.identity()
+                            ..translateByDouble(
+                              _offset.dx,
+                              _offset.dy,
+                              0,
+                              1,
+                            )
+                            ..scaleByDouble(_scale, _scale, 1, 1),
                           child: SizedBox(
                             width: content.width,
                             height: content.height,
@@ -339,6 +349,7 @@ class _GridLayout {
           final end = rowIndexOf[session.endPeriod] ?? session.endPeriod - 1;
           sessions.add(
             _SessionRef(
+              term: term,
               course: course,
               session: session,
               startRow: start < 0 ? 0 : start,
@@ -449,12 +460,15 @@ class _GridLayout {
 
 class _SessionRef {
   const _SessionRef({
+    required this.term,
     required this.course,
     required this.session,
     required this.startRow,
     required this.endRow,
   });
 
+  /// 点开课程详情时要用学期来换算节次对应的钟点，随卡片一起带着。
+  final Term term;
   final Course course;
   final CourseSession session;
   final int startRow;
@@ -615,64 +629,76 @@ class _CourseBlock extends StatelessWidget {
         (teacher == null || teacher.isEmpty) ? course.teacher : teacher;
     final scheme = Theme.of(context).colorScheme;
 
-    return DecoratedBox(
-      decoration: BoxDecoration(
-        // 淡色底 + 同色描边，深浅色模式下文字都保持清晰。
-        color: color.withValues(alpha: 0.16),
-        borderRadius: BorderRadius.circular(8),
-        border: Border.all(color: color.withValues(alpha: 0.75)),
+    return GestureDetector(
+      // 点一下看详情，便于和 1 系统的「排课信息」逐行对照排查识别问题。
+      // 这里用 onTap 而不是 InkWell：整周课表整体由外层手势负责缩放拖动，
+      // 内层只加一个轻量的点击识别，不影响缩放与惯性滑动。
+      onTap: () => showCourseDetailSheet(
+        context,
+        term: card.ref.term,
+        course: course,
+        session: session,
       ),
-      child: Padding(
-        padding: const EdgeInsets.fromLTRB(7, 5, 6, 5),
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            // 单节课的卡片只有几十像素高，课程名 + 教师 + 地点往往放不下。
-            // OverflowBox 让内容按自然高度排版（因此不会报 RenderFlex 溢出），
-            // 再由 ClipRect 裁掉超出部分；周次固定在底部保证始终可见。
-            Expanded(
-              child: ClipRect(
-                child: OverflowBox(
-                  alignment: Alignment.topLeft,
-                  maxHeight: double.infinity,
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    mainAxisSize: MainAxisSize.min,
-                    children: [
-                      Text(
-                        course.name,
-                        maxLines: 2,
-                        overflow: TextOverflow.ellipsis,
-                        style: Theme.of(context).textTheme.bodyMedium?.copyWith(
-                              fontWeight: FontWeight.w600,
-                              color: scheme.onSurface,
-                            ),
-                      ),
-                      if (teacherText.trim().isNotEmpty) ...[
-                        const SizedBox(height: 3),
-                        _BlockLine(
-                          text: teacherText,
-                          color: scheme.onSurfaceVariant,
+      child: DecoratedBox(
+        decoration: BoxDecoration(
+          // 淡色底 + 同色描边，深浅色模式下文字都保持清晰。
+          color: color.withValues(alpha: 0.16),
+          borderRadius: BorderRadius.circular(8),
+          border: Border.all(color: color.withValues(alpha: 0.75)),
+        ),
+        child: Padding(
+          padding: const EdgeInsets.fromLTRB(7, 5, 6, 5),
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              // 单节课的卡片只有几十像素高，课程名 + 教师 + 地点往往放不下。
+              // OverflowBox 让内容按自然高度排版（因此不会报 RenderFlex 溢出），
+              // 再由 ClipRect 裁掉超出部分；周次固定在底部保证始终可见。
+              Expanded(
+                child: ClipRect(
+                  child: OverflowBox(
+                    alignment: Alignment.topLeft,
+                    maxHeight: double.infinity,
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      mainAxisSize: MainAxisSize.min,
+                      children: [
+                        Text(
+                          course.name,
+                          maxLines: 2,
+                          overflow: TextOverflow.ellipsis,
+                          style: Theme.of(context).textTheme.bodyMedium
+                              ?.copyWith(
+                                fontWeight: FontWeight.w600,
+                                color: scheme.onSurface,
+                              ),
                         ),
+                        if (teacherText.trim().isNotEmpty) ...[
+                          const SizedBox(height: 3),
+                          _BlockLine(
+                            text: teacherText,
+                            color: scheme.onSurfaceVariant,
+                          ),
+                        ],
+                        if (session.location.trim().isNotEmpty) ...[
+                          const SizedBox(height: 2),
+                          _BlockLine(
+                            text: session.location,
+                            color: scheme.onSurfaceVariant,
+                          ),
+                        ],
                       ],
-                      if (session.location.trim().isNotEmpty) ...[
-                        const SizedBox(height: 2),
-                        _BlockLine(
-                          text: session.location,
-                          color: scheme.onSurfaceVariant,
-                        ),
-                      ],
-                    ],
+                    ),
                   ),
                 ),
               ),
-            ),
-            const SizedBox(height: 2),
-            _BlockLine(
-              text: session.weekRule.displayText,
-              color: scheme.onSurfaceVariant,
-            ),
-          ],
+              const SizedBox(height: 2),
+              _BlockLine(
+                text: session.weekRule.displayText,
+                color: scheme.onSurfaceVariant,
+              ),
+            ],
+          ),
         ),
       ),
     );

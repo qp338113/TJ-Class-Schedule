@@ -7,6 +7,7 @@ import '../application/schedule_controller.dart';
 import '../domain/schedule_engine.dart';
 import '../domain/schedule_models.dart';
 import 'appearance_settings_page.dart';
+import 'course_detail_sheet.dart';
 import 'data_management_page.dart';
 import 'full_timetable_page.dart';
 import 'import_preview_page.dart';
@@ -826,6 +827,9 @@ class _CourseCard extends ConsumerWidget {
       child: ClipRRect(
         borderRadius: BorderRadius.circular(16),
         child: InkWell(
+          // 点一下看这门课的详细信息（含 App 实际存储的各项字段），
+          // 长按进入编辑——两个手势分开，避免想查看时误改配置。
+          onTap: () => _showDetail(context, ref),
           onLongPress: () => _editEntry(context, ref),
           child: IntrinsicHeight(
             child: Row(
@@ -920,6 +924,73 @@ class _CourseCard extends ConsumerWidget {
             ),
           ),
         ),
+      ),
+    );
+  }
+
+  /// 点按查看详情。课程显示完整字段（便于与 1 系统「排课信息」对照排查识别问题），
+  /// 备忘录显示自己的时间信息。
+  Future<void> _showDetail(BuildContext context, WidgetRef ref) async {
+    final term = ref.read(scheduleControllerProvider).valueOrNull?.term;
+    if (term == null) return;
+    switch (item) {
+      case CourseEntry(course: final scheduled):
+        await showCourseDetailSheet(
+          context,
+          term: term,
+          course: scheduled.course,
+          session: scheduled.session,
+          date: scheduled.startTime,
+        );
+      case MemoEntry(memo: final memo):
+        await _showMemoDetail(context, term, memo);
+    }
+  }
+
+  Future<void> _showMemoDetail(
+    BuildContext context,
+    Term term,
+    Memo memo,
+  ) async {
+    final isRepeating = memo.weekRule != null;
+    final lines = <String>[
+      if (memo.location.isNotEmpty) '地点：${memo.location}',
+      if (isRepeating) ...[
+        '时间：${weekdayName(memo.weekday!)} '
+            '第 ${memo.startPeriod}-${memo.endPeriod} 节',
+        '周次：${memo.weekRule!.displayText}',
+      ] else ...[
+        '日期：${memo.date!.year}年${memo.date!.month}月${memo.date!.day}日'
+            ' ${weekdayName(memo.date!.weekday)}',
+        '时间：${clockText(memo.startMinutes!)}-${clockText(memo.endMinutes!)}',
+      ],
+    ];
+    await showDialog<void>(
+      context: context,
+      builder: (context) => AlertDialog(
+        title: Text(memo.title),
+        content: Column(
+          mainAxisSize: MainAxisSize.min,
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            for (final line in lines)
+              Padding(
+                padding: const EdgeInsets.only(bottom: 4),
+                child: Text(line),
+              ),
+            const SizedBox(height: 8),
+            Text(
+              isRepeating ? '按周重复的备忘录' : '一次性备忘录',
+              style: Theme.of(context).textTheme.bodySmall,
+            ),
+          ],
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(context),
+            child: const Text('关闭'),
+          ),
+        ],
       ),
     );
   }

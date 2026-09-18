@@ -312,6 +312,57 @@ void main() {
       expect(parseTongjiPopupText('刘梅川(06059) 专业导论 [5] 北116'), isEmpty);
     });
 
+    // 浮层宽度有限，长条目会折行；innerText 按渲染结果换行。
+    // 曾被逐行解析直接丢掉续行，导致整条记录消失、那一格少课。
+    test('条目折行时接回同一条，教师工号与地点不被截断', () {
+      final records = parseTongjiPopupText(_wrappedWednesdayPopup);
+
+      // 折行的那条不能丢。
+      expect(records.length, 2);
+      final byTeacher = {
+        for (final record in records) record.text.split(' ').first: record,
+      };
+      expect(byTeacher.keys.toSet(), {'张莉(05139)', '颜启明(09118)'});
+      // 工号跨行断开（0911 / 8)）必须拼回 09118，地点 北301 也不能丢。
+      expect(byTeacher['颜启明(09118)']!.text, contains('北301'));
+
+      final preview = parser.parse(records);
+      expect(preview.rows.length, 2);
+      expect(preview.rows.every((row) => row.isValid), isTrue);
+      expect(
+        preview.rows.map((row) => row.cells[ImportField.teacher]!.value).toSet(),
+        {'张莉', '颜启明'},
+      );
+    });
+
+    test('地点折行时拼回完整地点，多条同课合并成一节课', () {
+      final records = parseTongjiPopupText(_wrappedThursdayPopup);
+
+      // 三段周次、三位老师，都是周四 5-6 节，属同一节课。
+      expect(records.length, 3);
+      expect(records.every((r) => r.weekday == 4), isTrue);
+      expect(records.every((r) => r.startPeriod == 5 && r.endPeriod == 6), isTrue);
+
+      final result = parser.courseImportParser.buildCourses(
+        parser.parse(records),
+      );
+      expect(result.courses, hasLength(1), reason: '同一门课不应被拆成多门');
+      final course = result.courses.single;
+      expect(course.name, 'Auto CAD工程制图');
+      expect(course.sessions, hasLength(1), reason: '同节次应按周次并成一节课');
+      final session = course.sessions.single;
+      expect((session.weekday, session.startPeriod, session.endPeriod), (4, 5, 6));
+      // 折行的 土木学院 / 机房 必须拼回完整地点。
+      expect(session.location, '土木学院机房');
+      // 周次并集应为 1-12 周（[10] + [3-9] + [1-2, 11-12]）。
+      for (var week = 1; week <= 12; week++) {
+        expect(session.weekRule.includes(week), isTrue, reason: '第 $week 周缺失');
+      }
+      expect(session.weekRule.includes(13), isFalse);
+      // 三位老师都要保留（顺序取决于分组遍历，不固定顺序）。
+      expect(course.teacher.split('、').toSet(), {'徐俊', '张博珊', '徐骁青'});
+    });
+
     test('内容不是排课信息时返回空，不会误判', () {
       expect(parseTongjiPopupText(''), isEmpty);
       expect(parseTongjiPopupText('[星期四] 排课信息\n今天没有安排'), isEmpty);
@@ -320,6 +371,122 @@ void main() {
         parseTongjiPopupText('[星期五] 排课信息\n[1-2节] [1-16] 某门课 某老师 某地'),
         isEmpty,
       );
+    });
+  });
+
+  // —— 同一格里的多条排课 ——
+  // 浮层是 innerText，换行由渲染决定：同一格的多条课**可能被拼到同一行**，
+  // 也可能只读到其中一条。这些都被真实截图复现过。
+  group('同一格多条排课', () {
+    test('网页截图原文（两行两条）作为对照基准', () {
+      final result = parser.courseImportParser.buildCourses(
+        parser.parse(parseTongjiPopupText(_plainWedPopup)),
+      );
+      expect(
+        result.courses.map((course) => course.name).toSet(),
+        {'线性代数A', '高等数学B(I)'},
+      );
+    });
+
+    // 研究生格式：没有课程代码、没有教师工号，一行里用逗号并排两段周次与地点。
+    // 曾被整行跳过，这一格就整块消失。
+    test('研究生格式（无代码无工号）也能读出，一行两段各取自己的周次', () {
+      final records = parseTongjiPopupText(_graduateWedPopup);
+
+      expect(records.length, 2);
+      expect(records.every((r) => r.weekday == 3), isTrue);
+      expect(records.every((r) => r.startPeriod == 3 && r.endPeriod == 4), isTrue);
+
+      final result = parser.courseImportParser.buildCourses(parser.parse(records));
+      expect(result.courses, hasLength(1), reason: '同一节课按周次拆段，仍是一门课');
+      final course = result.courses.single;
+      expect(course.name, '学术英语写作III');
+      expect(course.teacher, '钱杨');
+      expect(course.sessions, hasLength(1), reason: '同节次应并成一节课');
+
+      final session = course.sessions.single;
+      // 两段周次并起来是 1-16 周，中间没有断档。
+      for (var week = 1; week <= 16; week++) {
+        expect(session.weekRule.includes(week), isTrue, reason: '第 $week 周缺失');
+      }
+      expect(session.weekRule.includes(17), isFalse);
+      // 地点详略不同（一段只写校区、一段写成教室），应取更具体的那条。
+      expect(session.location, '彰武北大楼 409 四平路校区');
+    });
+
+    // 两条课挤在同一行、中间没有换行。曾把第二条整段当成第一条的「地点」吞掉。
+    test('两条挤在同一行时按 [节次] 切开，不吞进上一条的地点', () {
+      final records = parseTongjiPopupText(_sameLineWedPopup);
+
+      expect(records.length, 2, reason: '两条都要读到');
+      final result = parser.courseImportParser.buildCourses(parser.parse(records));
+      expect(
+        result.courses.map((course) => course.name).toSet(),
+        {'线性代数A', '高等数学B(I)'},
+      );
+      // 地点必须是干净的地点，不能混入下一条的节次与课程名。
+      for (final course in result.courses) {
+        expect(course.sessions.single.location, isNot(contains('节]')));
+        expect(course.sessions.single.location, isNot(contains('(CMS')));
+      }
+    });
+
+    // 条目带 `1.` `2.` 序号，且部分被拼到同一行。曾只读到没有序号的那一条。
+    test('带序号的多条都能读到，序号不会被并进上一条', () {
+      final records = parseTongjiPopupText(_numberedWedPopup);
+
+      expect(records.length, 4);
+      expect(
+        records.every((r) => r.weekday == 3 && r.startPeriod == 3 && r.endPeriod == 4),
+        isTrue,
+      );
+      // 序号不能残留在正文里。
+      for (final record in records) {
+        expect(record.text, isNot(matches(RegExp(r'\d+\s*\.'))));
+      }
+
+      final result = parser.courseImportParser.buildCourses(parser.parse(records));
+      expect(
+        result.courses.map((course) => course.name).toSet(),
+        {'学术英语写作III', '线性代数A', '高等数学B(I)'},
+      );
+    });
+
+    // 同一门课按周次拆成三段、三位老师。三段周次并起来是 1-12 周。
+    // 页面侧曾因「一格文本里出现多个 [周次] 就整格拒绝」而完全读不到这一格，
+    // 这里同时钉住「文本拿到之后能正确解析」。
+    test('同课三段周次三位老师合并成一节课，周次无断档', () {
+      final records = parseTongjiPopupText(_cadPopup);
+      expect(records.length, 3);
+      expect(
+        records.every((r) => r.weekday == 4 && r.startPeriod == 5 && r.endPeriod == 6),
+        isTrue,
+      );
+
+      final result = parser.courseImportParser.buildCourses(parser.parse(records));
+      expect(result.courses, hasLength(1));
+      final course = result.courses.single;
+      expect(course.name, 'Auto CAD工程制图');
+      expect(course.sessions, hasLength(1));
+      expect(course.teacher.split('、').toSet(), {'徐俊', '张博珊', '徐骁青'});
+
+      final session = course.sessions.single;
+      expect(session.location, '土木学院机房');
+      for (var week = 1; week <= 12; week++) {
+        expect(session.weekRule.includes(week), isTrue, reason: '第 $week 周缺失');
+      }
+      expect(session.weekRule.includes(13), isFalse);
+    });
+
+    test('同课三段被拼到同一行时也能全部解析', () {
+      final result = parser.courseImportParser.buildCourses(
+        parser.parse(parseTongjiPopupText(_cadSameLinePopup)),
+      );
+      expect(result.courses, hasLength(1));
+      final session = result.courses.single.sessions.single;
+      expect(session.location, '土木学院机房');
+      expect(session.weekRule.includes(12), isTrue);
+      expect(session.weekRule.includes(13), isFalse);
     });
   });
 
@@ -455,4 +622,59 @@ const _mondayPopup = '''
 [7-8节] [2-16双] 普通化学实验A2(CSE1216) 李汶军(07169) 工程试验馆303、307
 [7-8节] [1, 3, 5, 7, 9, 11, 13, 15] 高等代数与解析几何(I)(CMS1229) 孙娟娟(12213) 南129
 ''';
+
+// 取自用户截图，逐字照抄，**保留折行**（工号被从中间截断）。
+const _wrappedWednesdayPopup = '''
+[星期三] 排课信息
+[3-4节] [2-16双] 线性代数A(CMS1208) 张莉(05139) 南201
+[3-4节] [1, 3, 5, 7, 9, 11, 13, 15] 高等数学B(I)(CMS1221) 颜启明(0911
+8) 北301
+''';
+
+// 取自用户截图，逐字照抄，**保留折行**（地点被断成 土木学院 / 机房）。
+const _wrappedThursdayPopup = '''
+[星期四] 排课信息
+[5-6节] [10] Auto CAD工程制图(CCE0901) 徐俊(07196) 土木学院机房
+[5-6节] [3-9] Auto CAD工程制图(CCE0901) 张博珊(19633) 土木学院
+机房
+[5-6节] [1-2, 11-12] Auto CAD工程制图(CCE0901) 徐骁青(21030) 土木学院机房
+''';
+
+// 取自用户截图，逐字照抄。研究生课表：没有课程代码、没有教师工号，
+// 且**同一行里用逗号并排写着两段周次与地点**（一段只写校区，
+// 一段写成教室），两者其实是同一节课按周次拆开的两段。
+const _graduateWedPopup = '''
+[星期三] 排课信息
+[3-4节] [4, 6, 8, 10, 12, 14] 钱杨 学术英语写作III( ) 四平路校区, 钱杨 学术英语写作III([1-3, 5, 7, 9, 11, 13, 15-16]彰武北大楼 409) 四平路校区''';
+
+// 取自用户截图：两条排课挤在同一行，中间没有换行。
+// 曾经把第二条整段当成第一条的「地点」吞掉。
+const _sameLineWedPopup = '''
+[星期三] 排课信息
+[3-4节] [1, 3, 5, 7, 9, 11, 13, 15] 线性代数A(CMS1208) 张莉(05139) 南201 [3-4节] [2-16双] 高等数学B(I)(CMS1221) 黄长水(99733) 北301''';
+
+// 取自用户截图：每条前面带 `1.`、`2.` 序号，且部分条目被拼到同一行。
+// 曾经只读到没有序号的那一条。
+const _numberedWedPopup = '''
+[星期三] 排课信息
+1.[3-4节] [4, 6, 8, 10, 12, 14] 钱杨 学术英语写作III( ) 四平路校区, 钱杨 学术英语写作III([1-3, 5, 7, 9, 11, 13, 15-16]彰武北大楼 409) 四平路校区      2.[3-4节] [1, 3, 5, 7, 9, 11, 13, 15] 线性代数A(CMS1208) 张莉(05139) 南201
+[3-4节] [2-16双] 高等数学B(I)(CMS1221) 黄长水(99733) 北301''';
+
+// 网页截图里的原文（本科格式，两行两条），作为对照基准。
+const _plainWedPopup = '''
+[星期三] 排课信息
+[3-4节] [1, 3, 5, 7, 9, 11, 13, 15] 线性代数A(CMS1208) 张莉(05139) 南201
+[3-4节] [2-16双] 高等数学B(I)(CMS1221) 黄长水(99733) 北301''';
+
+// 用户给出的原文：周四 5-6 节同一门课按周次拆成三段、三位老师。
+const _cadPopup = '''
+[星期四] 排课信息
+[5-6节] [10] Auto CAD工程制图(CCE0901) 徐俊(07196) 土木学院机房
+[5-6节] [3-9] Auto CAD工程制图(CCE0901) 张博珊(19633) 土木学院机房
+[5-6节] [1-2, 11-12] Auto CAD工程制图(CCE0901) 徐骁青(21030) 土木学院机房''';
+
+// 同上，但三条被拼到同一行（浮层偶尔这样返回）。
+const _cadSameLinePopup = '''
+[星期四] 排课信息
+[5-6节] [10] Auto CAD工程制图(CCE0901) 徐俊(07196) 土木学院机房 [5-6节] [3-9] Auto CAD工程制图(CCE0901) 张博珊(19633) 土木学院机房 [5-6节] [1-2, 11-12] Auto CAD工程制图(CCE0901) 徐骁青(21030) 土木学院机房''';
 

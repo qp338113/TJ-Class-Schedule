@@ -1,17 +1,45 @@
 package com.offlinecourse.offline_course_schedule
 
+import android.content.Intent
 import io.flutter.embedding.engine.FlutterEngine
 import io.flutter.embedding.android.FlutterActivity
 import io.flutter.plugin.common.MethodChannel
 import org.json.JSONArray
 
 class MainActivity : FlutterActivity() {
+    private var widgetChannel: MethodChannel? = null
+    override fun onNewIntent(intent: Intent) {
+        super.onNewIntent(intent)
+        setIntent(intent)
+        if (intent.getBooleanExtra("open_tasks", false)) {
+            widgetChannel?.invokeMethod("openTask", intent.getStringExtra("task_id") ?: "")
+            intent.removeExtra("open_tasks")
+        }
+    }
+
     override fun configureFlutterEngine(flutterEngine: FlutterEngine) {
         super.configureFlutterEngine(flutterEngine)
-        MethodChannel(
+        val channel = MethodChannel(
             flutterEngine.dartExecutor.binaryMessenger,
             "offline_course_schedule/widget",
-        ).setMethodCallHandler { call, result ->
+        )
+        widgetChannel = channel
+        channel.setMethodCallHandler { call, result ->
+            if (call.method == "initialTask") {
+                result.success(if (intent.getBooleanExtra("open_tasks", false)) intent.getStringExtra("task_id") ?: "" else null)
+                intent.removeExtra("open_tasks")
+                return@setMethodCallHandler
+            }
+            if (call.method == "updateTasks") {
+                val tasks = call.argument<List<Map<String, Any?>>>("tasks") ?: emptyList()
+                getSharedPreferences(NextCourseWidget.PREFS_NAME, MODE_PRIVATE).edit()
+                    .putString(TaskDeadlineWidget.TASKS_KEY, JSONArray(tasks).toString()).apply()
+                getSharedPreferences("FlutterSharedPreferences", MODE_PRIVATE).edit()
+                    .putString("flutter.task_widget_tasks", JSONArray(tasks).toString()).apply()
+                TaskDeadlineWidget.updateAll(this)
+                result.success(null)
+                return@setMethodCallHandler
+            }
             if (call.method != "update") {
                 result.notImplemented()
                 return@setMethodCallHandler

@@ -8,7 +8,10 @@ import 'package:timezone/timezone.dart' as tz;
 
 import '../application/schedule_controller.dart';
 import '../domain/notification_settings.dart';
+import '../application/task_state.dart';
+import '../domain/task_record.dart';
 import 'reminder_planner.dart';
+import 'task_reminder_planner.dart';
 
 final notificationServiceProvider = Provider<NotificationService>((ref) {
   throw StateError('NotificationService 尚未初始化');
@@ -20,9 +23,12 @@ class NotificationService {
 
   final FlutterLocalNotificationsPlugin _plugin;
   final _tappedDates = StreamController<DateTime>.broadcast();
+  final _tappedTasks = StreamController<String>.broadcast();
+  String? initialTaskId;
   final _planner = const ReminderPlanner();
 
   Stream<DateTime> get tappedDates => _tappedDates.stream;
+  Stream<String> get tappedTasks => _tappedTasks.stream;
 
   Future<DateTime?> initialize() async {
     tz_data.initializeTimeZones();
@@ -33,12 +39,18 @@ class NotificationService {
         android: AndroidInitializationSettings('ic_notification'),
       ),
       onDidReceiveNotificationResponse: (response) {
+        final taskId = _taskPayload(response.payload);
+        if (taskId != null) {
+          _tappedTasks.add(taskId);
+          return;
+        }
         final date = _parsePayload(response.payload);
         if (date != null) _tappedDates.add(date);
       },
     );
     final launch = await _plugin.getNotificationAppLaunchDetails();
     if (launch?.didNotificationLaunchApp != true) return null;
+    initialTaskId = _taskPayload(launch?.notificationResponse?.payload);
     return _parsePayload(launch?.notificationResponse?.payload);
   }
 
@@ -92,6 +104,42 @@ class NotificationService {
     );
   }
 
+  Future<void> showTaskNotice({
+    required int id,
+    required String title,
+    required String body,
+  }) => _plugin.show(
+    id: id,
+    title: title,
+    body: body,
+    payload: 'task:',
+    notificationDetails: const NotificationDetails(
+      android: AndroidNotificationDetails(
+        'task_sync_updates',
+        '作业同步与连接提醒',
+        channelDescription: '作业更新、连接失效与通知测试',
+        importance: Importance.high,
+        priority: Priority.high,
+        icon: 'ic_notification',
+      ),
+    ),
+  );
+
+  Future<bool> sendTaskTestNotification() async {
+    final android = _plugin
+        .resolvePlatformSpecificImplementation<
+          AndroidFlutterLocalNotificationsPlugin
+        >();
+    await android?.requestNotificationsPermission();
+    if (!await notificationsEnabled()) return false;
+    await showTaskNotice(
+      id: 910001,
+      title: '作业通知测试',
+      body: '通知显示正常。点击此通知会打开作业；截止提醒与后台同步提醒使用系统通知权限。',
+    );
+    return true;
+  }
+
   Future<void> openNotificationSettings() =>
       _plugin.openAppNotificationSettings();
 
@@ -100,9 +148,12 @@ class NotificationService {
     required NotificationSettings settings,
     DateTime? now,
   }) async {
-    // 只能清"未触发"的定时通知：cancelAll() 会连已经显示在通知栏里的提醒一起删掉，
-    // 导致用户刚看到的提醒莫名消失。
-    await _plugin.cancelAllPendingNotifications();
+    // 课表重排只取消待触发的课程通知，保留作业的预约。
+    for (final pending in await _plugin.pendingNotificationRequests()) {
+      if (_parsePayload(pending.payload) != null) {
+        await _plugin.cancel(id: pending.id);
+      }
+    }
     final term = schedule.term;
     if (term == null || !settings.enabled) return 0;
     if (!await canScheduleExactNotifications()) return 0;
@@ -199,7 +250,54 @@ class NotificationService {
     return plans.length + lockScreenPlans.length;
   }
 
-  Future<void> dispose() => _tappedDates.close();
+  Future<int> rescheduleTasks({
+    required List<TaskRecord> tasks,
+    required TaskReminderSettings settings,
+    DateTime? now,
+  }) async {
+    for (final pending in await _plugin.pendingNotificationRequests()) {
+      if (_taskPayload(pending.payload) != null) {
+        await _plugin.cancel(id: pending.id);
+      }
+    }
+    if (!settings.enabled || !await notificationsEnabled()) return 0;
+    final mode = await canScheduleExactNotifications()
+        ? AndroidScheduleMode.exactAllowWhileIdle
+        : AndroidScheduleMode.inexactAllowWhileIdle;
+    final plans = taskReminderPlans(tasks, settings, now ?? DateTime.now());
+    for (final plan in plans) {
+      await _plugin.zonedSchedule(
+        id: plan.id,
+        title: plan.title,
+        body: plan.body,
+        scheduledDate: tz.TZDateTime.from(plan.scheduledAt, tz.local),
+        notificationDetails: const NotificationDetails(
+          android: AndroidNotificationDetails(
+            'task_deadline_v1',
+            '作业截止提醒',
+            channelDescription: '在自选提前时间提醒未完成作业',
+            importance: Importance.high,
+            priority: Priority.high,
+            icon: 'ic_notification',
+            category: AndroidNotificationCategory.reminder,
+          ),
+        ),
+        androidScheduleMode: mode,
+        payload: plan.payload,
+      );
+    }
+    return plans.length;
+  }
+
+  Future<void> dispose() async {
+    await _tappedDates.close();
+    await _tappedTasks.close();
+  }
+
+  String? _taskPayload(String? payload) =>
+      payload != null && payload.startsWith('task:')
+      ? payload.substring(5)
+      : null;
 
   DateTime? _parsePayload(String? payload) {
     if (payload == null) return null;

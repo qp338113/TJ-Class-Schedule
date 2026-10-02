@@ -97,7 +97,7 @@ class TutorialPage extends StatelessWidget {
             icon: Icons.widgets_outlined,
             title: '添加桌面小组件',
             text:
-                '长按手机桌面空白处，进入“小组件”或“服务卡片”，找到“TJ Class Schedule”，添加“下一节课”。'
+                '长按手机桌面空白处，进入“小组件”或“服务卡片”，找到“TJ Class Schedule”，添加“下一节课”或“作业倒计时”。长按组件拖动边缘可以缩放，较小时保留标题和倒计时。'
                 '安装或修改课表后，请打开 App 一次让小组件同步；如果刚装新版看不到变化，把小组件删掉重新添加即可。',
           ),
           _TutorialStep(

@@ -1,0 +1,539 @@
+{
+  "version": 1,
+  "description": "非私密迁移样例，expected 由当前网页纯函数生成。Dart 测试应比较相同业务结果；ISO 字符串允许规范化为相同时间戳。",
+  "canvasSubmission": [
+    {
+      "input": null,
+      "expected": {
+        "state": "unknown",
+        "status": "pending"
+      }
+    },
+    {
+      "input": {},
+      "expected": {
+        "state": "unknown",
+        "status": "pending"
+      }
+    },
+    {
+      "input": {
+        "excused": true
+      },
+      "expected": {
+        "state": "excused",
+        "status": "completed"
+      }
+    },
+    {
+      "input": {
+        "workflow_state": "submitted"
+      },
+      "expected": {
+        "state": "submitted",
+        "status": "completed"
+      }
+    },
+    {
+      "input": {
+        "workflow_state": "pending_review"
+      },
+      "expected": {
+        "state": "pending_review",
+        "status": "completed"
+      }
+    },
+    {
+      "input": {
+        "workflow_state": "unsubmitted"
+      },
+      "expected": {
+        "state": "unsubmitted",
+        "status": "pending"
+      }
+    },
+    {
+      "input": {
+        "workflow_state": "unsubmitted",
+        "submitted_at": "2026-09-01T00:00:00Z"
+      },
+      "expected": {
+        "state": "unsubmitted",
+        "status": "pending"
+      }
+    },
+    {
+      "input": {
+        "workflow_state": "graded",
+        "submitted_at": null
+      },
+      "expected": {
+        "state": "graded",
+        "status": "pending"
+      }
+    },
+    {
+      "input": {
+        "workflow_state": "graded",
+        "submitted_at": "invalid"
+      },
+      "expected": {
+        "state": "graded",
+        "status": "pending"
+      }
+    },
+    {
+      "input": {
+        "workflow_state": "graded",
+        "submitted_at": "2026-09-30T10:00:00+08:00"
+      },
+      "expected": {
+        "state": "graded",
+        "status": "completed"
+      }
+    },
+    {
+      "input": {
+        "submitted_at": "2026-09-30T10:00:00+08:00"
+      },
+      "expected": {
+        "state": "unknown",
+        "status": "completed"
+      }
+    },
+    {
+      "input": {
+        "excused": true,
+        "workflow_state": "unsubmitted"
+      },
+      "expected": {
+        "state": "excused",
+        "status": "completed"
+      }
+    }
+  ],
+  "haokeTask": [
+    {
+      "input": {
+        "taskId": 1,
+        "taskName": "普通待提交",
+        "myStatus": 10,
+        "endTime": "2026-10-08 00:00:00"
+      },
+      "course": {
+        "classId": 42,
+        "instanceId": 73,
+        "instanceName": "线性代数"
+      },
+      "column": {
+        "columnId": 9,
+        "columnName": "课后作业",
+        "columnCode": "HOMEWORK",
+        "uniqueId": "fixture-column"
+      },
+      "syncedAt": "2026-10-01T00:00:00.000Z",
+      "expected": {
+        "externalId": "42:1",
+        "title": "普通待提交",
+        "course": "线性代数",
+        "platform": "haoke",
+        "dueAt": "2026-10-07T16:00:00.000Z",
+        "status": "pending",
+        "url": "https://tongji.aihaoke.net/student/course/42/task?instanceId=73&columnId=9&taskType=HOMEWORK&uniqueId=fixture-column",
+        "note": "好课接口同步 · 待提交或待核对",
+        "syncedAt": "2026-10-01T00:00:00.000Z",
+        "submissionState": "unsubmitted"
+      }
+    },
+    {
+      "input": {
+        "taskId": 2,
+        "taskName": "待评价",
+        "myStatus": 20,
+        "endTime": "2026-10-08T00:00:00+08:00"
+      },
+      "course": {
+        "classId": 42,
+        "instanceId": 73,
+        "instanceName": "线性代数"
+      },
+      "column": {
+        "columnId": 9,
+        "columnName": "课后作业",
+        "columnCode": "HOMEWORK",
+        "uniqueId": "fixture-column"
+      },
+      "syncedAt": "2026-10-01T00:00:00.000Z",
+      "expected": {
+        "externalId": "42:2",
+        "title": "待评价",
+        "course": "线性代数",
+        "platform": "haoke",
+        "dueAt": "2026-10-07T16:00:00.000Z",
+        "status": "completed",
+        "url": "https://tongji.aihaoke.net/student/course/42/task?instanceId=73&columnId=9&taskType=HOMEWORK&uniqueId=fixture-column",
+        "note": "好课接口同步 · 待评价",
+        "syncedAt": "2026-10-01T00:00:00.000Z",
+        "submissionState": "submitted"
+      }
+    },
+    {
+      "input": {
+        "taskId": 3,
+        "taskName": "已完成",
+        "myStatus": 30,
+        "endTime": "2026-10-07T16:00:00Z"
+      },
+      "course": {
+        "classId": 42,
+        "instanceId": 73,
+        "instanceName": "线性代数"
+      },
+      "column": {
+        "columnId": 9,
+        "columnName": "课后作业",
+        "columnCode": "HOMEWORK",
+        "uniqueId": "fixture-column"
+      },
+      "syncedAt": "2026-10-01T00:00:00.000Z",
+      "expected": {
+        "externalId": "42:3",
+        "title": "已完成",
+        "course": "线性代数",
+        "platform": "haoke",
+        "dueAt": "2026-10-07T16:00:00.000Z",
+        "status": "completed",
+        "url": "https://tongji.aihaoke.net/student/course/42/task?instanceId=73&columnId=9&taskType=HOMEWORK&uniqueId=fixture-column",
+        "note": "好课接口同步 · 已完成",
+        "syncedAt": "2026-10-01T00:00:00.000Z",
+        "submissionState": "submitted"
+      }
+    },
+    {
+      "input": {
+        "taskId": 4,
+        "taskName": "已退回",
+        "myStatus": 30,
+        "continueType": 20,
+        "endTime": null
+      },
+      "course": {
+        "classId": 42,
+        "instanceId": 73,
+        "instanceName": "线性代数"
+      },
+      "column": {
+        "columnId": 9,
+        "columnName": "课后作业",
+        "columnCode": "HOMEWORK",
+        "uniqueId": "fixture-column"
+      },
+      "syncedAt": "2026-10-01T00:00:00.000Z",
+      "expected": {
+        "externalId": "42:4",
+        "title": "已退回",
+        "course": "线性代数",
+        "platform": "haoke",
+        "dueAt": null,
+        "status": "pending",
+        "url": "https://tongji.aihaoke.net/student/course/42/task?instanceId=73&columnId=9&taskType=HOMEWORK&uniqueId=fixture-column",
+        "note": "好课接口同步 · 已退回，需重新提交",
+        "syncedAt": "2026-10-01T00:00:00.000Z",
+        "submissionState": "returned"
+      }
+    },
+    {
+      "input": {
+        "taskId": 5,
+        "taskName": "豁免",
+        "myStatus": 10,
+        "exemptFlag": 1,
+        "endTime": "9999-12-31 00:00:00"
+      },
+      "course": {
+        "classId": 42,
+        "instanceId": 73,
+        "instanceName": "线性代数"
+      },
+      "column": {
+        "columnId": 9,
+        "columnName": "课后作业",
+        "columnCode": "HOMEWORK",
+        "uniqueId": "fixture-column"
+      },
+      "syncedAt": "2026-10-01T00:00:00.000Z",
+      "expected": {
+        "externalId": "42:5",
+        "title": "豁免",
+        "course": "线性代数",
+        "platform": "haoke",
+        "dueAt": null,
+        "status": "completed",
+        "url": "https://tongji.aihaoke.net/student/course/42/task?instanceId=73&columnId=9&taskType=HOMEWORK&uniqueId=fixture-column",
+        "note": "好课接口同步 · 已完成",
+        "syncedAt": "2026-10-01T00:00:00.000Z",
+        "submissionState": "submitted"
+      }
+    },
+    {
+      "input": {
+        "taskId": 6,
+        "taskName": "豁免但退回",
+        "myStatus": 30,
+        "exemptFlag": 1,
+        "continueType": 20,
+        "endTime": null
+      },
+      "course": {
+        "classId": 42,
+        "instanceId": 73,
+        "instanceName": "线性代数"
+      },
+      "column": {
+        "columnId": 9,
+        "columnName": "课后作业",
+        "columnCode": "HOMEWORK",
+        "uniqueId": "fixture-column"
+      },
+      "syncedAt": "2026-10-01T00:00:00.000Z",
+      "expected": {
+        "externalId": "42:6",
+        "title": "豁免但退回",
+        "course": "线性代数",
+        "platform": "haoke",
+        "dueAt": null,
+        "status": "pending",
+        "url": "https://tongji.aihaoke.net/student/course/42/task?instanceId=73&columnId=9&taskType=HOMEWORK&uniqueId=fixture-column",
+        "note": "好课接口同步 · 已退回，需重新提交",
+        "syncedAt": "2026-10-01T00:00:00.000Z",
+        "submissionState": "returned"
+      }
+    },
+    {
+      "input": {
+        "taskId": 7,
+        "taskName": "未知状态",
+        "myStatus": 99,
+        "endTime": null
+      },
+      "course": {
+        "classId": 42,
+        "instanceId": 73,
+        "instanceName": "线性代数"
+      },
+      "column": {
+        "columnId": 9,
+        "columnName": "课后作业",
+        "columnCode": "HOMEWORK",
+        "uniqueId": "fixture-column"
+      },
+      "syncedAt": "2026-10-01T00:00:00.000Z",
+      "expected": {
+        "externalId": "42:7",
+        "title": "未知状态",
+        "course": "线性代数",
+        "platform": "haoke",
+        "dueAt": null,
+        "status": "pending",
+        "url": "https://tongji.aihaoke.net/student/course/42/task?instanceId=73&columnId=9&taskType=HOMEWORK&uniqueId=fixture-column",
+        "note": "好课接口同步 · 待提交或待核对",
+        "syncedAt": "2026-10-01T00:00:00.000Z",
+        "submissionState": "unsubmitted"
+      }
+    },
+    {
+      "input": {
+        "taskId": 8,
+        "taskName": "字符串数字状态",
+        "myStatus": "20",
+        "endTime": null
+      },
+      "course": {
+        "classId": 42,
+        "instanceId": 73,
+        "instanceName": "线性代数"
+      },
+      "column": {
+        "columnId": 9,
+        "columnName": "课后作业",
+        "columnCode": "HOMEWORK",
+        "uniqueId": "fixture-column"
+      },
+      "syncedAt": "2026-10-01T00:00:00.000Z",
+      "expected": {
+        "externalId": "42:8",
+        "title": "字符串数字状态",
+        "course": "线性代数",
+        "platform": "haoke",
+        "dueAt": null,
+        "status": "completed",
+        "url": "https://tongji.aihaoke.net/student/course/42/task?instanceId=73&columnId=9&taskType=HOMEWORK&uniqueId=fixture-column",
+        "note": "好课接口同步 · 已完成",
+        "syncedAt": "2026-10-01T00:00:00.000Z",
+        "submissionState": "submitted"
+      }
+    }
+  ],
+  "haokeDeadline": [
+    {
+      "input": null,
+      "expected": {
+        "value": null
+      }
+    },
+    {
+      "input": "",
+      "expected": {
+        "value": null
+      }
+    },
+    {
+      "input": "9999-12-31 00:00:00",
+      "expected": {
+        "value": null
+      }
+    },
+    {
+      "input": "2026-10-08 00:00:00",
+      "expected": {
+        "value": "2026-10-07T16:00:00.000Z"
+      }
+    },
+    {
+      "input": "2026-10-08T00:00:00+08:00",
+      "expected": {
+        "value": "2026-10-07T16:00:00.000Z"
+      }
+    },
+    {
+      "input": "2026-10-07T16:00:00Z",
+      "expected": {
+        "value": "2026-10-07T16:00:00.000Z"
+      }
+    },
+    {
+      "input": "invalid",
+      "expected": {
+        "reject": true
+      }
+    }
+  ],
+  "safeTaskUrl": [
+    {
+      "input": "",
+      "expected": {
+        "value": ""
+      }
+    },
+    {
+      "input": "https://canvas.tongji.edu.cn/courses/42/assignments/7",
+      "expected": {
+        "value": "https://canvas.tongji.edu.cn/courses/42/assignments/7"
+      }
+    },
+    {
+      "input": "http://192.168.180.213:18080/d/gaocheng2026fall/",
+      "expected": {
+        "value": "http://192.168.180.213:18080/d/gaocheng2026fall/"
+      }
+    },
+    {
+      "input": "https://tongji.aihaoke.net/student/course/42/task?instanceId=73&columnId=9",
+      "expected": {
+        "value": "https://tongji.aihaoke.net/student/course/42/task?instanceId=73&columnId=9"
+      }
+    },
+    {
+      "input": "javascript:alert(1)",
+      "expected": {
+        "reject": true
+      }
+    },
+    {
+      "input": "https://user:pass@example.com/",
+      "expected": {
+        "reject": true
+      }
+    },
+    {
+      "input": "https://example.com/?access_token=fixture",
+      "expected": {
+        "reject": true
+      }
+    },
+    {
+      "input": "https://example.com/?ticket=fixture",
+      "expected": {
+        "reject": true
+      }
+    },
+    {
+      "input": "https://example.com/?enc=fixture",
+      "expected": {
+        "reject": true
+      }
+    },
+    {
+      "input": "https://example.com/?%74oken=fixture",
+      "expected": {
+        "reject": true
+      }
+    },
+    {
+      "input": "https://example.com/#authorization",
+      "expected": {
+        "reject": true
+      }
+    },
+    {
+      "input": "https://example.com/#authorization=fixture",
+      "expected": {
+        "reject": true
+      }
+    },
+    {
+      "input": "not-a-url",
+      "expected": {
+        "reject": true
+      }
+    }
+  ],
+  "rangeDeadline": [
+    {
+      "start": "10/01 08:00",
+      "end": "10/08 00:00",
+      "year": 2026,
+      "expected": "2026-10-08T00:00"
+    },
+    {
+      "start": "12/30 08:00",
+      "end": "01/02 23:59",
+      "year": 2026,
+      "expected": "2027-01-02T23:59"
+    },
+    {
+      "start": "2026年12月30日 08:00",
+      "end": "2027年01月02日 23:59",
+      "year": 2026,
+      "expected": "2027-01-02T23:59"
+    },
+    {
+      "start": "02/27 08:00",
+      "end": "02/29 23:59",
+      "year": 2026,
+      "expected": ""
+    },
+    {
+      "start": "02/27 08:00",
+      "end": "02/29 23:59",
+      "year": 2028,
+      "expected": "2028-02-29T23:59"
+    },
+    {
+      "start": "10/01 08:00",
+      "end": "10/08 25:00",
+      "year": 2026,
+      "expected": ""
+    }
+  ]
+}

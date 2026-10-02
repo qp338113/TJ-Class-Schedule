@@ -12,6 +12,7 @@ class ScheduleDatabase {
   static Future<ScheduleDatabase> open({
     DatabaseFactory? factory,
     String? path,
+    bool singleInstance = true,
   }) async {
     final selectedFactory = factory ?? databaseFactory;
     final databasePath =
@@ -19,7 +20,8 @@ class ScheduleDatabase {
     final database = await selectedFactory.openDatabase(
       databasePath,
       options: OpenDatabaseOptions(
-        version: 7,
+        version: 8,
+        singleInstance: singleInstance,
         onConfigure: (db) => db.execute('PRAGMA foreign_keys = ON'),
         onCreate: _createTables,
         onUpgrade: (db, oldVersion, newVersion) async {
@@ -40,6 +42,7 @@ class ScheduleDatabase {
             );
           }
           if (oldVersion < 7) await _createMemosTable(db);
+          if (oldVersion < 8) await _createTasksTable(db);
         },
       ),
     );
@@ -97,6 +100,7 @@ class ScheduleDatabase {
     await _createMakeupDaysTable(db);
     await _createCourseCancellationsTable(db);
     await _createMemosTable(db);
+    await _createTasksTable(db);
   }
 
   static Future<void> _createSettingsTable(Database db) {
@@ -149,6 +153,27 @@ class ScheduleDatabase {
         start_minutes INTEGER,
         end_minutes INTEGER,
         FOREIGN KEY (term_id) REFERENCES terms(id) ON DELETE CASCADE
+      )
+    ''');
+  }
+
+  static Future<void> _createTasksTable(Database db) async {
+    await db.execute('''
+      CREATE TABLE tasks (
+        id TEXT PRIMARY KEY,
+        title TEXT NOT NULL,
+        course TEXT NOT NULL,
+        platform TEXT NOT NULL,
+        source TEXT NOT NULL,
+        account_id TEXT NOT NULL,
+        created_at TEXT NOT NULL,
+        due_at TEXT,
+        completed INTEGER NOT NULL,
+        manual_completed INTEGER,
+        url TEXT NOT NULL,
+        note TEXT NOT NULL,
+        synced_at TEXT,
+        submission_state TEXT
       )
     ''');
   }
@@ -554,10 +579,12 @@ class ScheduleDatabase {
   ///
   /// 直接删行会让调休提示一并消失，用户就再也找不到设置入口了。
   Future<void> clearReplacementSchedule(DateTime date) {
-    return database.update('national_makeup_days', {
-      'replacement_week': null,
-      'replacement_weekday': null,
-    }, where: 'date = ?', whereArgs: [_dateKey(date)]);
+    return database.update(
+      'national_makeup_days',
+      {'replacement_week': null, 'replacement_weekday': null},
+      where: 'date = ?',
+      whereArgs: [_dateKey(date)],
+    );
   }
 
   Future<void> saveNotificationSettings(NotificationSettings settings) async {

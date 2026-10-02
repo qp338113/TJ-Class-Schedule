@@ -16,6 +16,7 @@ import android.widget.RemoteViews
 import org.json.JSONArray
 
 class NextCourseWidget : AppWidgetProvider() {
+    override fun onDisabled(context: Context) { scheduleNextRefresh(context) }
     override fun onUpdate(
         context: Context,
         appWidgetManager: AppWidgetManager,

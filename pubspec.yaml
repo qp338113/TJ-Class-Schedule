@@ -1,7 +1,7 @@
 name: offline_course_schedule
 description: 完全离线的个人课程表（当前阶段：数据、导入与周次判定）
 publish_to: none
-version: 0.2.0+2
+version: 0.2.3+5
 
 environment:
   sdk: ">=3.10.0 <4.0.0"
@@ -15,6 +15,7 @@ dependencies:
   file_picker: ^13.1.0
   flutter_local_notifications: ^22.0.0
   flutter_riverpod: ^2.6.1
+  flutter_secure_storage: ^10.3.4
   flutter_timezone: ^5.1.0
   google_mlkit_text_recognition: ^0.16.0
   path: ^1.9.0
@@ -22,6 +23,8 @@ dependencies:
   sqflite: ^2.3.3+1
   timezone: ^0.11.1
   webview_flutter: ^4.14.1
+  workmanager: 0.10.10
+  shared_preferences: 2.5.5
 
 dev_dependencies:
   flutter_test:
@@ -32,3 +35,5 @@ dev_dependencies:
 
 flutter:
   uses-material-design: true
+  assets:
+    - assets/task_collector.js

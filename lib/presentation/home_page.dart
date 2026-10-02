@@ -14,6 +14,7 @@ import 'import_preview_page.dart';
 import 'manual_course_page.dart';
 import 'notification_settings_page.dart';
 import 'term_setup_page.dart';
+import 'task_page.dart';
 import 'tongji_timetable_page.dart';
 
 class HomePage extends ConsumerWidget {
@@ -84,6 +85,14 @@ class _WelcomePage extends StatelessWidget {
                 ),
                 const SizedBox(height: 28),
                 FilledButton(onPressed: onSetup, child: const Text('开始设置')),
+                const SizedBox(height: 12),
+                TextButton(
+                  onPressed: () => Navigator.push(
+                    context,
+                    MaterialPageRoute<void>(builder: (_) => const TaskPage()),
+                  ),
+                  child: const Text('先查看作业'),
+                ),
               ],
             ),
           ),
@@ -181,6 +190,12 @@ class _ScheduleHome extends ConsumerWidget {
           scrolledUnderElevation: hasBackground ? 0 : null,
           title: Text(term.name),
           actions: [
+            IconButton(
+              tooltip: '作业',
+              onPressed: () => Navigator.push(context,
+                MaterialPageRoute<void>(builder: (_) => const TaskPage())),
+              icon: const Icon(Icons.assignment_outlined),
+            ),
             IconButton(
               tooltip: '导入课表',
               onPressed: () => Navigator.push(

@@ -3,4 +3,6 @@
     <string name="app_name">TJ Class Schedule</string>
     <string name="widget_name">下一节课</string>
     <string name="widget_description">显示下一节课的时间、科目和地点</string>
+    <string name="task_widget_name">作业倒计时</string>
+    <string name="task_widget_description">显示最近待截止作业的剩余时间与逾期数量</string>
 </resources>

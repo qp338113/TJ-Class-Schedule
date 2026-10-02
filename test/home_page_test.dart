@@ -58,6 +58,7 @@ void main() {
     expect(find.textContaining('第 1 周'), findsOneWidget);
     expect(find.text('添加课程'), findsOneWidget);
     expect(find.text('Powered by Algernon'), findsOneWidget);
+    expect(find.byTooltip('作业'), findsOneWidget);
 
     // 点一下打开课程详情（用来与 1 系统「排课信息」对照，排查识别问题），
     // 不再直接进入编辑。详情面板里有「上课周」字段，只有它会出现。

@@ -1,3 +1,4 @@
+// 以下排课样例使用虚构姓名、编号、课程和地点，仅用于解析回归。
 import 'package:flutter_test/flutter_test.dart';
 import 'package:offline_course_schedule/domain/schedule_models.dart';
 import 'package:offline_course_schedule/import/course_import.dart';
@@ -9,7 +10,7 @@ void main() {
   test('解析同济课表中的教师、课程、周次和地点', () {
     final preview = parser.parse(const [
       TongjiTimetableRecord(
-        text: '姚勤(95017) 高等数学B(I) (CMS122103) [1-16] 北129',
+        text: '示甲壬(73895) 示例课程甲甲B(I) (DEMO10107) [1-16] 演示B129',
         weekday: 1,
         startPeriod: 1,
         endPeriod: 2,
@@ -18,9 +19,9 @@ void main() {
 
     final row = preview.rows.single;
     expect(row.isValid, isTrue);
-    expect(row.cells[ImportField.courseName]!.value, '高等数学B(I)');
-    expect(row.cells[ImportField.teacher]!.value, '姚勤');
-    expect(row.cells[ImportField.location]!.value, '北129');
+    expect(row.cells[ImportField.courseName]!.value, '示例课程甲甲B(I)');
+    expect(row.cells[ImportField.teacher]!.value, '示甲壬');
+    expect(row.cells[ImportField.location]!.value, '演示B129');
     expect(row.cells[ImportField.weekday]!.value, 1);
     final periods = row.cells[ImportField.periods]!.value! as PeriodRange;
     expect((periods.start, periods.end), (1, 2));
@@ -30,8 +31,8 @@ void main() {
     final preview = parser.parse(const [
       TongjiTimetableRecord(
         text:
-            '徐象繁(13517),王庆国(18131),赫丽(00770) 大学物理实验A1(I) '
-            '(PSE123503) [1, 3, 5, 7, 9, 11, 13, 15] 物理馆2-4楼',
+            '示丙甲(91395),示丁乙(96919),示丁癸(88558) 示例课程甲乙A1(I) '
+            '(DEMO10104) [1, 3, 5, 7, 9, 11, 13, 15] 示例楼己2-4楼',
         weekday: 4,
         startPeriod: 3,
         endPeriod: 4,
@@ -40,7 +41,7 @@ void main() {
 
     final row = preview.rows.single;
     expect(row.isValid, isTrue);
-    expect(row.cells[ImportField.teacher]!.value, '徐象繁、王庆国、赫丽');
+    expect(row.cells[ImportField.teacher]!.value, '示丙甲、示丁乙、示丁癸');
     final result = parser.courseImportParser.buildCourses(preview);
     expect(
       result.courses.single.sessions.single.weekRule.type,
@@ -103,7 +104,7 @@ void main() {
   test('解析研究生课表没有课程代码的卡片', () {
     final preview = parser.parse(const [
       TongjiTimetableRecord(
-        text: '周舒威 高等地下结构([1-16]彰武北大楼 209) 四平路校区',
+        text: '示甲庚 示例课程乙丙([1-16]示例楼甲 209) 示例楼丙',
         weekday: 1,
         startPeriod: 3,
         endPeriod: 4,
@@ -112,9 +113,9 @@ void main() {
 
     final row = preview.rows.single;
     expect(row.isValid, isTrue);
-    expect(row.cells[ImportField.courseName]!.value, '高等地下结构');
-    expect(row.cells[ImportField.teacher]!.value, '周舒威');
-    expect(row.cells[ImportField.location]!.value, '彰武北大楼 209 四平路校区');
+    expect(row.cells[ImportField.courseName]!.value, '示例课程乙丙');
+    expect(row.cells[ImportField.teacher]!.value, '示甲庚');
+    expect(row.cells[ImportField.location]!.value, '示例楼甲 209 示例楼丙');
     final periods = row.cells[ImportField.periods]!.value! as PeriodRange;
     expect((periods.start, periods.end), (3, 4));
   });
@@ -122,8 +123,8 @@ void main() {
   test('研究生课表的不连续周次按集合保留', () {
     final preview = parser.parse(const [
       TongjiTimetableRecord(
-        text: '万立明 中国马克思主义与当代 '
-            '([2, 4, 6, 8, 10, 12, 14, 16]彰武南大楼 117) 四平路校区',
+        text: '示甲甲 示例课程乙甲 '
+            '([2, 4, 6, 8, 10, 12, 14, 16]示例楼乙 117) 示例楼丙',
         weekday: 3,
         startPeriod: 5,
         endPeriod: 8,
@@ -132,8 +133,8 @@ void main() {
 
     final row = preview.rows.single;
     expect(row.isValid, isTrue);
-    expect(row.cells[ImportField.courseName]!.value, '中国马克思主义与当代');
-    expect(row.cells[ImportField.teacher]!.value, '万立明');
+    expect(row.cells[ImportField.courseName]!.value, '示例课程乙甲');
+    expect(row.cells[ImportField.teacher]!.value, '示甲甲');
     final rule = parser
         .courseImportParser
         .buildCourses(preview)
@@ -150,7 +151,7 @@ void main() {
   test('研究生课表只有校区时地点保留校区', () {
     final preview = parser.parse(const [
       TongjiTimetableRecord(
-        text: '钱杨 学术英语写作III([4, 6, 8, 10, 12, 14]) 四平路校区，',
+        text: '示戊丁 示例课程乙乙III([4, 6, 8, 10, 12, 14]) 示例楼丙，',
         weekday: 3,
         startPeriod: 3,
         endPeriod: 4,
@@ -159,15 +160,15 @@ void main() {
 
     final row = preview.rows.single;
     expect(row.isValid, isTrue);
-    expect(row.cells[ImportField.courseName]!.value, '学术英语写作III');
-    expect(row.cells[ImportField.teacher]!.value, '钱杨');
-    expect(row.cells[ImportField.location]!.value, '四平路校区');
+    expect(row.cells[ImportField.courseName]!.value, '示例课程乙乙III');
+    expect(row.cells[ImportField.teacher]!.value, '示戊丁');
+    expect(row.cells[ImportField.location]!.value, '示例楼丙');
   });
 
   test('课程名以括号数字结尾时不会被当成教师工号', () {
     final preview = parser.parse(const [
       TongjiTimetableRecord(
-        text: '冯辉(93761) 体育(1)(DPE110120) [1-16] 综合训练馆羽毛球馆',
+        text: '示甲丙(71549) 示例课程甲壬(1)(DEMO10102) [1-16] 示例楼戊',
         weekday: 1,
         startPeriod: 3,
         endPeriod: 4,
@@ -176,15 +177,15 @@ void main() {
 
     final row = preview.rows.single;
     expect(row.isValid, isTrue);
-    expect(row.cells[ImportField.courseName]!.value, '体育(1)');
-    expect(row.cells[ImportField.teacher]!.value, '冯辉');
-    expect(row.cells[ImportField.location]!.value, '综合训练馆羽毛球馆');
+    expect(row.cells[ImportField.courseName]!.value, '示例课程甲壬(1)');
+    expect(row.cells[ImportField.teacher]!.value, '示甲丙');
+    expect(row.cells[ImportField.location]!.value, '示例楼戊');
   });
 
   test('课程名以括号数字结尾且与代码之间有空格', () {
     final preview = parser.parse(const [
       TongjiTimetableRecord(
-        text: '孙毅(22161) 形势与政策(1) (CMA111629) [7-10] 南301',
+        text: '示乙乙(00949) 示例课程甲癸(1) (DEMO10097) [7-10] 演示A301',
         weekday: 2,
         startPeriod: 7,
         endPeriod: 10,
@@ -193,15 +194,15 @@ void main() {
 
     final row = preview.rows.single;
     expect(row.isValid, isTrue);
-    expect(row.cells[ImportField.courseName]!.value, '形势与政策(1)');
-    expect(row.cells[ImportField.teacher]!.value, '孙毅');
+    expect(row.cells[ImportField.courseName]!.value, '示例课程甲癸(1)');
+    expect(row.cells[ImportField.teacher]!.value, '示乙乙');
   });
 
   test('多位教师仍按逗号分隔完整识别', () {
     final preview = parser.parse(const [
       TongjiTimetableRecord(
-        text: '徐象繁(13517),王庆国(18131),赫丽(00770) 大学物理实验A1(I) '
-            '(PSE123503) [1, 3, 5] 物理馆2-4楼',
+        text: '示丙甲(91395),示丁乙(96919),示丁癸(88558) 示例课程甲乙A1(I) '
+            '(DEMO10104) [1, 3, 5] 示例楼己2-4楼',
         weekday: 4,
         startPeriod: 3,
         endPeriod: 4,
@@ -210,14 +211,14 @@ void main() {
 
     final row = preview.rows.single;
     expect(row.isValid, isTrue);
-    expect(row.cells[ImportField.teacher]!.value, '徐象繁、王庆国、赫丽');
-    expect(row.cells[ImportField.courseName]!.value, '大学物理实验A1(I)');
+    expect(row.cells[ImportField.teacher]!.value, '示丙甲、示丁乙、示丁癸');
+    expect(row.cells[ImportField.courseName]!.value, '示例课程甲乙A1(I)');
   });
 
   test('空格分隔的多位教师也能识别', () {
     final preview = parser.parse(const [
       TongjiTimetableRecord(
-        text: '冯辉(93761) 姚勤(95017) 高等数学B(I)(CMS122103) [1-16] 北129',
+        text: '示甲丙(71549) 示甲壬(73895) 示例课程甲甲B(I)(DEMO10107) [1-16] 演示B129',
         weekday: 1,
         startPeriod: 1,
         endPeriod: 2,
@@ -226,12 +227,12 @@ void main() {
 
     final row = preview.rows.single;
     expect(row.isValid, isTrue);
-    expect(row.cells[ImportField.teacher]!.value, '冯辉、姚勤');
-    expect(row.cells[ImportField.courseName]!.value, '高等数学B(I)');
+    expect(row.cells[ImportField.teacher]!.value, '示甲丙、示甲壬');
+    expect(row.cells[ImportField.courseName]!.value, '示例课程甲甲B(I)');
   });
 
   // —— 弹窗（「排课信息」）路径 ——
-  // 文本取自用户提供的真实截图，逐字照抄。
+  // 以下为虚构回归样例，保留原有格式边界。
   // 价值：星期来自标题、节次与周次来自每行，不再需要用卡片位置去推算。
   group('排课信息弹窗', () {
     test('周四弹窗：同一门课按周次切成多行，不同老师各成一行', () {
@@ -250,23 +251,23 @@ void main() {
         preview.rows
             .map((row) => row.cells[ImportField.courseName]!.value)
             .toSet(),
-        {'专业导论(理科试验班)'},
+        {'示例课程甲辛(示例课程丙庚)'},
       );
       // parse() 会按周几/节次/文本排序，所以按周次查找而不是用下标。
       String teacherOfWeek(String weeks) => preview.rows
           .firstWhere((row) => row.cells[ImportField.weeks]!.raw == weeks)
           .cells[ImportField.teacher]!
           .value! as String;
-      expect(teacherOfWeek('5周'), '刘梅川');
-      expect(teacherOfWeek('9-16周'), '邱军、刘宁');
-      expect(teacherOfWeek('3, 8周'), '刘宁');
-      expect(teacherOfWeek('4周'), '祝捷');
+      expect(teacherOfWeek('5周'), '示甲戊');
+      expect(teacherOfWeek('9-16周'), '示戊甲、示甲丁');
+      expect(teacherOfWeek('3, 8周'), '示甲丁');
+      expect(teacherOfWeek('4周'), '示丁己');
       // 每行地点都保留
       expect(
         preview.rows
             .map((row) => row.cells[ImportField.location]!.value)
             .toSet(),
-        {'北116'},
+        {'演示B116'},
       );
     });
 
@@ -282,15 +283,15 @@ void main() {
         for (final row in preview.rows)
           row.cells[ImportField.courseName]!.value!: row,
       };
-      expect(byName.keys.toSet(), {'普通化学实验A2', '高等代数与解析几何(I)'});
-      expect(byName['普通化学实验A2']!.cells[ImportField.teacher]!.value, '李汶军');
+      expect(byName.keys.toSet(), {'示例课程甲戊A2', '示例课程甲丙(I)'});
+      expect(byName['示例课程甲戊A2']!.cells[ImportField.teacher]!.value, '示丙庚');
       expect(
-        byName['高等代数与解析几何(I)']!.cells[ImportField.teacher]!.value,
-        '孙娟娟',
+        byName['示例课程甲丙(I)']!.cells[ImportField.teacher]!.value,
+        '示乙甲',
       );
       expect(
-        byName['普通化学实验A2']!.cells[ImportField.location]!.value,
-        '工程试验馆303、307',
+        byName['示例课程甲戊A2']!.cells[ImportField.location]!.value,
+        '示例楼辛303、307',
       );
 
       // 双周与自定义周次都要落成正确的规则，而不是被当成每周。
@@ -298,8 +299,8 @@ void main() {
       final courses = {
         for (final course in result.courses) course.name: course,
       };
-      final chemistry = courses['普通化学实验A2']!;
-      final algebra = courses['高等代数与解析几何(I)']!;
+      final chemistry = courses['示例课程甲戊A2']!;
+      final algebra = courses['示例课程甲丙(I)']!;
       expect(chemistry.sessions.single.weekRule.type, WeekType.even);
       expect(chemistry.sessions.single.weekRule.includes(2), isTrue);
       expect(chemistry.sessions.single.weekRule.includes(3), isFalse);
@@ -309,7 +310,7 @@ void main() {
     });
 
     test('标题没有星期时返回空，交由调用方回退', () {
-      expect(parseTongjiPopupText('刘梅川(06059) 专业导论 [5] 北116'), isEmpty);
+      expect(parseTongjiPopupText('示甲戊(84837) 示例课程甲辛 [5] 演示B116'), isEmpty);
     });
 
     // 浮层宽度有限，长条目会折行；innerText 按渲染结果换行。
@@ -322,16 +323,16 @@ void main() {
       final byTeacher = {
         for (final record in records) record.text.split(' ').first: record,
       };
-      expect(byTeacher.keys.toSet(), {'张莉(05139)', '颜启明(09118)'});
-      // 工号跨行断开（0911 / 8)）必须拼回 09118，地点 北301 也不能丢。
-      expect(byTeacher['颜启明(09118)']!.text, contains('北301'));
+      expect(byTeacher.keys.toSet(), {'示乙壬(83917)', '示戊辛(87996)'});
+      // 工号跨行断开（8799 / 8)）必须拼回 87996，地点 演示B301 也不能丢。
+      expect(byTeacher['示戊辛(87996)']!.text, contains('演示B301'));
 
       final preview = parser.parse(records);
       expect(preview.rows.length, 2);
       expect(preview.rows.every((row) => row.isValid), isTrue);
       expect(
         preview.rows.map((row) => row.cells[ImportField.teacher]!.value).toSet(),
-        {'张莉', '颜启明'},
+        {'示乙壬', '示戊辛'},
       );
     });
 
@@ -348,19 +349,19 @@ void main() {
       );
       expect(result.courses, hasLength(1), reason: '同一门课不应被拆成多门');
       final course = result.courses.single;
-      expect(course.name, 'Auto CAD工程制图');
+      expect(course.name, '示例课程甲庚');
       expect(course.sessions, hasLength(1), reason: '同节次应按周次并成一节课');
       final session = course.sessions.single;
       expect((session.weekday, session.startPeriod, session.endPeriod), (4, 5, 6));
-      // 折行的 土木学院 / 机房 必须拼回完整地点。
-      expect(session.location, '土木学院机房');
+      // 折行的 示例楼庚 / 机房 必须拼回完整地点。
+      expect(session.location, '示例楼庚机房');
       // 周次并集应为 1-12 周（[10] + [3-9] + [1-2, 11-12]）。
       for (var week = 1; week <= 12; week++) {
         expect(session.weekRule.includes(week), isTrue, reason: '第 $week 周缺失');
       }
       expect(session.weekRule.includes(13), isFalse);
       // 三位老师都要保留（顺序取决于分组遍历，不固定顺序）。
-      expect(course.teacher.split('、').toSet(), {'徐俊', '张博珊', '徐骁青'});
+      expect(course.teacher.split('、').toSet(), {'示乙癸', '示乙己', '示丙乙'});
     });
 
     test('内容不是排课信息时返回空，不会误判', () {
@@ -378,13 +379,13 @@ void main() {
   // 浮层是 innerText，换行由渲染决定：同一格的多条课**可能被拼到同一行**，
   // 也可能只读到其中一条。这些都被真实截图复现过。
   group('同一格多条排课', () {
-    test('网页截图原文（两行两条）作为对照基准', () {
+    test('虚构排课内容（两行两条）作为对照基准', () {
       final result = parser.courseImportParser.buildCourses(
         parser.parse(parseTongjiPopupText(_plainWedPopup)),
       );
       expect(
         result.courses.map((course) => course.name).toSet(),
-        {'线性代数A', '高等数学B(I)'},
+        {'示例课程甲丁A', '示例课程甲甲B(I)'},
       );
     });
 
@@ -400,8 +401,8 @@ void main() {
       final result = parser.courseImportParser.buildCourses(parser.parse(records));
       expect(result.courses, hasLength(1), reason: '同一节课按周次拆段，仍是一门课');
       final course = result.courses.single;
-      expect(course.name, '学术英语写作III');
-      expect(course.teacher, '钱杨');
+      expect(course.name, '示例课程乙乙III');
+      expect(course.teacher, '示戊丁');
       expect(course.sessions, hasLength(1), reason: '同节次应并成一节课');
 
       final session = course.sessions.single;
@@ -411,7 +412,7 @@ void main() {
       }
       expect(session.weekRule.includes(17), isFalse);
       // 地点详略不同（一段只写校区、一段写成教室），应取更具体的那条。
-      expect(session.location, '彰武北大楼 409 四平路校区');
+      expect(session.location, '示例楼甲 409 示例楼丙');
     });
 
     // 两条课挤在同一行、中间没有换行。曾把第二条整段当成第一条的「地点」吞掉。
@@ -422,7 +423,7 @@ void main() {
       final result = parser.courseImportParser.buildCourses(parser.parse(records));
       expect(
         result.courses.map((course) => course.name).toSet(),
-        {'线性代数A', '高等数学B(I)'},
+        {'示例课程甲丁A', '示例课程甲甲B(I)'},
       );
       // 地点必须是干净的地点，不能混入下一条的节次与课程名。
       for (final course in result.courses) {
@@ -448,7 +449,7 @@ void main() {
       final result = parser.courseImportParser.buildCourses(parser.parse(records));
       expect(
         result.courses.map((course) => course.name).toSet(),
-        {'学术英语写作III', '线性代数A', '高等数学B(I)'},
+        {'示例课程乙乙III', '示例课程甲丁A', '示例课程甲甲B(I)'},
       );
     });
 
@@ -466,12 +467,12 @@ void main() {
       final result = parser.courseImportParser.buildCourses(parser.parse(records));
       expect(result.courses, hasLength(1));
       final course = result.courses.single;
-      expect(course.name, 'Auto CAD工程制图');
+      expect(course.name, '示例课程甲庚');
       expect(course.sessions, hasLength(1));
-      expect(course.teacher.split('、').toSet(), {'徐俊', '张博珊', '徐骁青'});
+      expect(course.teacher.split('、').toSet(), {'示乙癸', '示乙己', '示丙乙'});
 
       final session = course.sessions.single;
-      expect(session.location, '土木学院机房');
+      expect(session.location, '示例楼庚机房');
       for (var week = 1; week <= 12; week++) {
         expect(session.weekRule.includes(week), isTrue, reason: '第 $week 周缺失');
       }
@@ -484,7 +485,7 @@ void main() {
       );
       expect(result.courses, hasLength(1));
       final session = result.courses.single.sessions.single;
-      expect(session.location, '土木学院机房');
+      expect(session.location, '示例楼庚机房');
       expect(session.weekRule.includes(12), isTrue);
       expect(session.weekRule.includes(13), isFalse);
     });
@@ -564,16 +565,16 @@ void main() {
     );
 
     test('完全相同的记录只保留一条', () {
-      final same = record(4, 5, 6, '刘梅川(06059) 专业导论 [5] 北116');
+      final same = record(4, 5, 6, '示甲戊(84837) 示例课程甲辛 [5] 演示B116');
       final result = dedupeRecords([same, same, same]);
       expect(result.length, 1);
     });
 
     test('同一门课不同周次不会被误删（原文不同）', () {
       final result = dedupeRecords([
-        record(4, 5, 6, '刘梅川(06059) 专业导论 [5] 北116'),
-        record(4, 5, 6, '邱军(06122) 专业导论 [1-2] 北116'),
-        record(4, 5, 6, '邱军(06122),刘宁(21019) 专业导论 [9-16] 北116'),
+        record(4, 5, 6, '示甲戊(84837) 示例课程甲辛 [5] 演示B116'),
+        record(4, 5, 6, '示戊甲(84900) 示例课程甲辛 [1-2] 演示B116'),
+        record(4, 5, 6, '示戊甲(84900),示甲丁(09897) 示例课程甲辛 [9-16] 演示B116'),
       ]);
       expect(result.length, 3);
     });
@@ -605,76 +606,76 @@ void main() {
   });
 }
 
-// 下面两段取自用户提供的真实截图，逐字照抄（含空格与标点）。
+// 下面两段为虚构的解析回归数据，保留空格与标点结构。
 const _thursdayPopup = '''
 [星期四] 排课信息
-[5-6节] [5] 专业导论(理科试验班)(PSE1901) 刘梅川(06059) 北116
-[5-6节] [1-2] 专业导论(理科试验班)(PSE1901) 邱军(06122) 北116
-[5-6节] [9-16] 专业导论(理科试验班)(PSE1901) 邱军(06122),刘宁(21019) 北116
-[5-6节] [6] 专业导论(理科试验班)(PSE1901) 李忠华(08097) 北116
-[5-6节] [7] 专业导论(理科试验班)(PSE1901) 季福武(08115) 北116
-[5-6节] [3, 8] 专业导论(理科试验班)(PSE1901) 刘宁(21019) 北116
-[5-6节] [4] 专业导论(理科试验班)(PSE1901) 祝捷(21134) 北116
+[5-6节] [5] 示例课程甲辛(示例课程丙庚)(DEMO10093) 示甲戊(84837) 演示B116
+[5-6节] [1-2] 示例课程甲辛(示例课程丙庚)(DEMO10093) 示戊甲(84900) 演示B116
+[5-6节] [9-16] 示例课程甲辛(示例课程丙庚)(DEMO10093) 示戊甲(84900),示甲丁(09897) 演示B116
+[5-6节] [6] 示例课程甲辛(示例课程丙庚)(DEMO10093) 示丙己(86875) 演示B116
+[5-6节] [7] 示例课程甲辛(示例课程丙庚)(DEMO10093) 示乙丁(86993) 演示B116
+[5-6节] [3, 8] 示例课程甲辛(示例课程丙庚)(DEMO10093) 示甲丁(09897) 演示B116
+[5-6节] [4] 示例课程甲辛(示例课程丙庚)(DEMO10093) 示丁己(09912) 演示B116
 ''';
 
 const _mondayPopup = '''
 [星期一] 排课信息
-[7-8节] [2-16双] 普通化学实验A2(CSE1216) 李汶军(07169) 工程试验馆303、307
-[7-8节] [1, 3, 5, 7, 9, 11, 13, 15] 高等代数与解析几何(I)(CMS1229) 孙娟娟(12213) 南129
+[7-8节] [2-16双] 示例课程甲戊A2(DEMO10098) 示丙庚(85947) 示例楼辛303、307
+[7-8节] [1, 3, 5, 7, 9, 11, 13, 15] 示例课程甲丙(I)(DEMO10092) 示乙甲(90091) 演示A129
 ''';
 
-// 取自用户截图，逐字照抄，**保留折行**（工号被从中间截断）。
+// 虚构回归数据，**保留折行**（工号被从中间截断）。
 const _wrappedWednesdayPopup = '''
 [星期三] 排课信息
-[3-4节] [2-16双] 线性代数A(CMS1208) 张莉(05139) 南201
-[3-4节] [1, 3, 5, 7, 9, 11, 13, 15] 高等数学B(I)(CMS1221) 颜启明(0911
-8) 北301
+[3-4节] [2-16双] 示例课程甲丁A(DEMO10108) 示乙壬(83917) 演示A201
+[3-4节] [1, 3, 5, 7, 9, 11, 13, 15] 示例课程甲甲B(I)(DEMO10096) 示戊辛(8799
+6) 演示B301
 ''';
 
-// 取自用户截图，逐字照抄，**保留折行**（地点被断成 土木学院 / 机房）。
+// 虚构回归数据，**保留折行**（地点被断成 示例楼庚 / 机房）。
 const _wrappedThursdayPopup = '''
 [星期四] 排课信息
-[5-6节] [10] Auto CAD工程制图(CCE0901) 徐俊(07196) 土木学院机房
-[5-6节] [3-9] Auto CAD工程制图(CCE0901) 张博珊(19633) 土木学院
+[5-6节] [10] 示例课程甲庚(DEMO10113) 示乙癸(85974) 示例楼庚机房
+[5-6节] [3-9] 示例课程甲庚(DEMO10113) 示乙己(97411) 示例楼庚
 机房
-[5-6节] [1-2, 11-12] Auto CAD工程制图(CCE0901) 徐骁青(21030) 土木学院机房
+[5-6节] [1-2, 11-12] 示例课程甲庚(DEMO10113) 示丙乙(09818) 示例楼庚机房
 ''';
 
-// 取自用户截图，逐字照抄。研究生课表：没有课程代码、没有教师工号，
+// 虚构回归数据。研究生课表：没有课程代码、没有教师工号，
 // 且**同一行里用逗号并排写着两段周次与地点**（一段只写校区，
 // 一段写成教室），两者其实是同一节课按周次拆开的两段。
 const _graduateWedPopup = '''
 [星期三] 排课信息
-[3-4节] [4, 6, 8, 10, 12, 14] 钱杨 学术英语写作III( ) 四平路校区, 钱杨 学术英语写作III([1-3, 5, 7, 9, 11, 13, 15-16]彰武北大楼 409) 四平路校区''';
+[3-4节] [4, 6, 8, 10, 12, 14] 示戊丁 示例课程乙乙III( ) 示例楼丙, 示戊丁 示例课程乙乙III([1-3, 5, 7, 9, 11, 13, 15-16]示例楼甲 409) 示例楼丙''';
 
-// 取自用户截图：两条排课挤在同一行，中间没有换行。
+// 虚构回归数据：两条排课挤在同一行，中间没有换行。
 // 曾经把第二条整段当成第一条的「地点」吞掉。
 const _sameLineWedPopup = '''
 [星期三] 排课信息
-[3-4节] [1, 3, 5, 7, 9, 11, 13, 15] 线性代数A(CMS1208) 张莉(05139) 南201 [3-4节] [2-16双] 高等数学B(I)(CMS1221) 黄长水(99733) 北301''';
+[3-4节] [1, 3, 5, 7, 9, 11, 13, 15] 示例课程甲丁A(DEMO10108) 示乙壬(83917) 演示A201 [3-4节] [2-16双] 示例课程甲甲B(I)(DEMO10096) 示戊癸(77511) 演示B301''';
 
-// 取自用户截图：每条前面带 `1.`、`2.` 序号，且部分条目被拼到同一行。
+// 虚构回归数据：每条前面带 `1.`、`2.` 序号，且部分条目被拼到同一行。
 // 曾经只读到没有序号的那一条。
 const _numberedWedPopup = '''
 [星期三] 排课信息
-1.[3-4节] [4, 6, 8, 10, 12, 14] 钱杨 学术英语写作III( ) 四平路校区, 钱杨 学术英语写作III([1-3, 5, 7, 9, 11, 13, 15-16]彰武北大楼 409) 四平路校区      2.[3-4节] [1, 3, 5, 7, 9, 11, 13, 15] 线性代数A(CMS1208) 张莉(05139) 南201
-[3-4节] [2-16双] 高等数学B(I)(CMS1221) 黄长水(99733) 北301''';
+1.[3-4节] [4, 6, 8, 10, 12, 14] 示戊丁 示例课程乙乙III( ) 示例楼丙, 示戊丁 示例课程乙乙III([1-3, 5, 7, 9, 11, 13, 15-16]示例楼甲 409) 示例楼丙      2.[3-4节] [1, 3, 5, 7, 9, 11, 13, 15] 示例课程甲丁A(DEMO10108) 示乙壬(83917) 演示A201
+[3-4节] [2-16双] 示例课程甲甲B(I)(DEMO10096) 示戊癸(77511) 演示B301''';
 
-// 网页截图里的原文（本科格式，两行两条），作为对照基准。
+// 虚构的网页排课内容（本科格式，两行两条），作为对照基准。
 const _plainWedPopup = '''
 [星期三] 排课信息
-[3-4节] [1, 3, 5, 7, 9, 11, 13, 15] 线性代数A(CMS1208) 张莉(05139) 南201
-[3-4节] [2-16双] 高等数学B(I)(CMS1221) 黄长水(99733) 北301''';
+[3-4节] [1, 3, 5, 7, 9, 11, 13, 15] 示例课程甲丁A(DEMO10108) 示乙壬(83917) 演示A201
+[3-4节] [2-16双] 示例课程甲甲B(I)(DEMO10096) 示戊癸(77511) 演示B301''';
 
-// 用户给出的原文：周四 5-6 节同一门课按周次拆成三段、三位老师。
+// 虚构回归样例：周四 5-6 节同一门课按周次拆成三段、三位老师。
 const _cadPopup = '''
 [星期四] 排课信息
-[5-6节] [10] Auto CAD工程制图(CCE0901) 徐俊(07196) 土木学院机房
-[5-6节] [3-9] Auto CAD工程制图(CCE0901) 张博珊(19633) 土木学院机房
-[5-6节] [1-2, 11-12] Auto CAD工程制图(CCE0901) 徐骁青(21030) 土木学院机房''';
+[5-6节] [10] 示例课程甲庚(DEMO10113) 示乙癸(85974) 示例楼庚机房
+[5-6节] [3-9] 示例课程甲庚(DEMO10113) 示乙己(97411) 示例楼庚机房
+[5-6节] [1-2, 11-12] 示例课程甲庚(DEMO10113) 示丙乙(09818) 示例楼庚机房''';
 
 // 同上，但三条被拼到同一行（浮层偶尔这样返回）。
 const _cadSameLinePopup = '''
 [星期四] 排课信息
-[5-6节] [10] Auto CAD工程制图(CCE0901) 徐俊(07196) 土木学院机房 [5-6节] [3-9] Auto CAD工程制图(CCE0901) 张博珊(19633) 土木学院机房 [5-6节] [1-2, 11-12] Auto CAD工程制图(CCE0901) 徐骁青(21030) 土木学院机房''';
+[5-6节] [10] 示例课程甲庚(DEMO10113) 示乙癸(85974) 示例楼庚机房 [5-6节] [3-9] 示例课程甲庚(DEMO10113) 示乙己(97411) 示例楼庚机房 [5-6节] [1-2, 11-12] 示例课程甲庚(DEMO10113) 示丙乙(09818) 示例楼庚机房''';
 

@@ -25,6 +25,28 @@ key.properties
 
 # 内部交接文档，面向接手开发者，不进公开仓库。
 PROJECT_HANDOFF.md
+CODEX_HANDOFF.md
+CANVAS_SESSION_INTEGRATION.md
+HAOKE_SESSION_INTEGRATION.md
+LOCATION_INTEGRATION.md
+REVIEW_0.3.0.md
+
+# 个人数据及凭据仅保存在仓库外。
+.env
+.env.*
+!.env.example
+*.db
+*.db-*
+*.sqlite
+*.sqlite3
+*.pem
+*.p12
+*.mobileprovision
+private/
+website/public/assets/screenshots/main.webp
+website/public/assets/screenshots/widget.webp
+website/public/assets/screenshots/makeup.webp
+website/public/assets/screenshots/semester.webp
 
 # 更新报告的分发版本由 RELEASE_NOTES.md 生成，派生物不入库。
 RELEASE_NOTES.txt

@@ -20,8 +20,8 @@ void main() {
 
   Course course() => Course(
     id: 'course-1',
-    name: 'Auto CAD工程制图',
-    teacher: '徐俊、张博珊、徐骁青',
+    name: '示例课程甲庚',
+    teacher: '示乙癸、示乙己、示丙乙',
     colorValue: 0xFF7D9DCE,
     sessions: [
       CourseSession(
@@ -35,8 +35,8 @@ void main() {
           type: WeekType.custom,
           explicitWeeks: const {1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12},
         ),
-        location: '土木学院机房',
-        teacherOverride: '徐俊',
+        location: '示例楼庚机房',
+        teacherOverride: '示乙癸',
       ),
     ],
   );
@@ -72,8 +72,8 @@ void main() {
     await open(tester, session: course().sessions.single, date: DateTime(2026, 10, 1));
 
     // 课程名与关键字段都在，且是「存储值」而不是推算值。
-    expect(find.text('Auto CAD工程制图'), findsWidgets);
-    expect(find.text('土木学院机房'), findsWidgets);
+    expect(find.text('示例课程甲庚'), findsWidgets);
+    expect(find.text('示例楼庚机房'), findsWidgets);
     expect(find.text('周四'), findsWidgets);
     expect(find.text('第 5-6 节'), findsWidgets);
     // 节次对应的钟点也要给出（第5节 13:00-13:45，第6节 13:50-14:35）。
@@ -83,14 +83,14 @@ void main() {
     // 具体日期与教学周。
     expect(find.textContaining('2026年10月1日'), findsOneWidget);
     // 该时间段自己的教师覆盖值要显示出来，而不是只显示课程级教师。
-    expect(find.text('徐俊'), findsWidgets);
+    expect(find.text('示乙癸'), findsWidgets);
   });
 
   testWidgets('不传某一节时也能打开，并列出全部时间段', (tester) async {
     await open(tester);
 
     expect(find.textContaining('这门课的全部时间段（1 条）'), findsOneWidget);
-    expect(find.textContaining('Auto CAD工程制图'), findsWidgets);
+    expect(find.textContaining('示例课程甲庚'), findsWidgets);
   });
 
   group('周次展开', () {
